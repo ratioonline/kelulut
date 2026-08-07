@@ -233,7 +233,7 @@ export default function MediaDetailModal({ item, isOpen, onClose }: MediaDetailM
       </Modal>
 
       <ConfirmModal
-        isOpen={confirmDelete}
+        open={confirmDelete}
         onClose={() => setConfirmDelete(false)}
         onConfirm={handleDelete}
         title="Hapus Media?"
