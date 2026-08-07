@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Images, Plus } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import MediaManager from '../../components/media/MediaManager'
@@ -27,8 +28,7 @@ export default function AdminMedia() {
       {/* Embedded Media Manager */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200 min-h-[500px]">
         <MediaManager
-          isOpen={openManager}
-          onClose={() => setOpenManager(true)} // Keep open on page
+          isInline={true}
           defaultFolder="semua"
           moduleName="Media Library"
         />
