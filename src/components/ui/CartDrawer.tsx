@@ -25,7 +25,7 @@ export default function CartDrawer() {
     const total = formatCurrency(totalPrice())
     const text =
       `Halo, saya ingin memesan:\n${lines.join('\n')}\n\nTotal: ${total}\n\nMohon konfirmasi ketersediaan stok. Terima kasih!`
-    window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(text)}`, '_blank')
+    window.open(`https://wa.me/6285255136491?text=${encodeURIComponent(text)}`, '_blank')
   }
 
   return (

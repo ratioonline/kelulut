@@ -78,21 +78,33 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-start gap-3 text-sm text-gray-300">
                 <MapPin size={16} className="text-[#F5A623] mt-0.5 shrink-0" />
-                <span>Jl. Kebun Kelulut No. 1, Sangatta Utara, Kutai Timur, Kalimantan Timur</span>
+                <a
+                  href="https://maps.app.goo.gl/TP2Z1tvJb4iJrxMQ7"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                >
+                  Jl. PERTAMINA KM.4, Sangatta Selatan - Kutai Timur, Kalimantan Timur
+                </a>
               </li>
               <li className="flex items-center gap-3 text-sm text-gray-300">
                 <Phone size={16} className="text-[#F5A623] shrink-0" />
-                <a href="tel:+6281234567890" className="hover:text-white transition-colors">
-                  +62 812-3456-7890
+                <a
+                  href="https://wa.me/6285255136491?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                >
+                  085255136491
                 </a>
               </li>
               <li className="flex items-center gap-3 text-sm text-gray-300">
                 <Mail size={16} className="text-[#F5A623] shrink-0" />
                 <a
-                  href="mailto:info@kebunkelulut.id"
+                  href="mailto:kebunkelulutsangatta@gmail.com"
                   className="hover:text-white transition-colors"
                 >
-                  info@kebunkelulut.id
+                  kebunkelulutsangatta@gmail.com
                 </a>
               </li>
             </ul>

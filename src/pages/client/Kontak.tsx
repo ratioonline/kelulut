@@ -6,20 +6,20 @@ const contactInfo = [
   {
     icon: MapPin,
     label: 'Alamat',
-    value: 'Jl. Kebun Kelulut No. 1, Sangatta Utara, Kutai Timur, Kalimantan Timur 75611',
-    href: 'https://maps.google.com/?q=Sangatta+Kutai+Timur',
+    value: 'Jl. PERTAMINA KM.4, Sangatta Selatan - Kutai Timur, Kalimantan Timur',
+    href: 'https://maps.app.goo.gl/TP2Z1tvJb4iJrxMQ7',
   },
   {
     icon: Phone,
     label: 'Telepon / WhatsApp',
-    value: '+62 812-3456-7890',
-    href: 'tel:+6281234567890',
+    value: '085255136491',
+    href: 'https://wa.me/6285255136491?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta.',
   },
   {
     icon: Mail,
     label: 'Email',
-    value: 'info@kebunkelulut.id',
-    href: 'mailto:info@kebunkelulut.id',
+    value: 'kebunkelulutsangatta@gmail.com',
+    href: 'mailto:kebunkelulutsangatta@gmail.com',
   },
   {
     icon: Clock,
@@ -77,10 +77,10 @@ export default function KontakPage() {
 
               {/* WhatsApp CTA */}
               <a
-                href="https://wa.me/6281234567890?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta."
+                href="https://wa.me/6285255136491?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta."
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-6 flex items-center justify-center gap-3 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3.5 rounded-xl transition-colors"
+                className="mt-6 flex items-center justify-center gap-3 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-md"
               >
                 <MessageCircle size={20} />
                 Chat via WhatsApp
@@ -93,18 +93,24 @@ export default function KontakPage() {
               <div className="rounded-2xl overflow-hidden shadow-lg border border-gray-200 bg-white">
                 <iframe
                   title="Peta Lokasi Kebun Kelulut Sangatta"
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d127762.84803456!2d117.4693!3d0.4814!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x320fa49b48a0b1e9%3A0x3f6f52d5e3a8c62a!2sSangatta%2C%20Kutai%20Timur!5e0!3m2!1sid!2sid!4v1700000000000!5m2!1sid!2sid"
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15956.702951717387!2d117.5186!3d0.4619!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x320fa49b48a0b1e9%3A0x3f6f52d5e3a8c62a!2sSangatta%2C%20Kutai%20Timur!5e0!3m2!1sid!2sid!4v1700000000000!5m2!1sid!2sid"
                   width="100%"
-                  height="400"
+                  height="340"
                   style={{ border: 0 }}
                   allowFullScreen
                   loading="lazy"
                   referrerPolicy="no-referrer-when-downgrade"
                 />
               </div>
-              <p className="mt-3 text-xs text-gray-400 text-center">
-                Klik peta untuk petunjuk arah lebih detail
-              </p>
+              <a
+                href="https://maps.app.goo.gl/TP2Z1tvJb4iJrxMQ7"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex items-center justify-center gap-2 w-full bg-[#1B4332] hover:bg-[#2D6A4F] text-white text-sm font-semibold py-3 rounded-xl transition-colors shadow-sm"
+              >
+                <MapPin size={18} />
+                Buka di Google Maps
+              </a>
             </div>
           </div>
         </div>
