@@ -19,6 +19,7 @@ import toast from 'react-hot-toast'
 
 const navItems = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/admin/media',     icon: Images,          label: 'Media Library' },
   { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider' },
   { to: '/admin/reservasi', icon: CalendarCheck,   label: 'Reservasi' },
   { to: '/admin/produk',    icon: ShoppingBag,     label: 'Produk' },

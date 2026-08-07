@@ -12,7 +12,7 @@ import Modal, { ConfirmModal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
-import ImageUpload from '../../components/ui/ImageUpload'
+import MediaPickerButton from '../../components/media/MediaPickerButton'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -222,11 +222,12 @@ export default function AdminProgram() {
             />
             <Input label="Durasi" placeholder="mis. 2 jam" {...register('duration')} />
           </div>
-          <ImageUpload
+          <MediaPickerButton
             label="Foto Program"
             value={imageBase64 ?? undefined}
             onChange={setImageBase64}
-            maxSizeMB={2}
+            folder="Program"
+            moduleName="Program"
           />
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="w-4 h-4 rounded accent-[#2D6A4F]" {...register('is_active')} />

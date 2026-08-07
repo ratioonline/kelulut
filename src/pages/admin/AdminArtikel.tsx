@@ -12,7 +12,7 @@ import Modal, { ConfirmModal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
-import ImageUpload from '../../components/ui/ImageUpload'
+import MediaPickerButton from '../../components/media/MediaPickerButton'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -190,7 +190,13 @@ export default function AdminArtikel() {
           <Input label="Judul Artikel" required error={errors.title?.message} {...register('title')} />
           <Textarea label="Ringkasan (Excerpt)" rows={2} placeholder="Ringkasan singkat artikel..." {...register('excerpt')} />
           <Textarea label="Konten" rows={10} required error={errors.content?.message} placeholder="Tulis konten artikel di sini..." {...register('content')} />
-          <ImageUpload label="Thumbnail Artikel" value={imageBase64 ?? undefined} onChange={setImageBase64} maxSizeMB={2} />
+          <MediaPickerButton
+            label="Thumbnail Artikel"
+            value={imageBase64 ?? undefined}
+            onChange={setImageBase64}
+            folder="Artikel"
+            moduleName="Artikel"
+          />
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="w-4 h-4 rounded accent-[#2D6A4F]" {...register('published')} />
             <span className="text-sm text-gray-700">Langsung publikasikan</span>

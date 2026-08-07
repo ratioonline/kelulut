@@ -9,7 +9,7 @@ import Modal, { ConfirmModal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
-import ImageUpload from '../../components/ui/ImageUpload'
+import MediaPickerButton from '../../components/media/MediaPickerButton'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -144,12 +144,13 @@ export default function AdminGaleri() {
         }
       >
         <form id="gallery-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <ImageUpload
-            label="Foto"
+          <MediaPickerButton
+            label="Foto Galeri"
             value={imageBase64 ?? undefined}
             onChange={(v) => { setImageBase64(v); if (v) setImageError('') }}
             error={imageError}
-            maxSizeMB={2}
+            folder="Galeri"
+            moduleName="Galeri"
           />
           <Input label="Judul (opsional)" placeholder="Nama foto" {...register('title')} />
           <Input label="Kategori (opsional)" placeholder="Kegiatan, Fasilitas, Produk..." {...register('category')} />

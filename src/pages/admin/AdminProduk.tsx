@@ -12,7 +12,7 @@ import Modal, { ConfirmModal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
-import ImageUpload from '../../components/ui/ImageUpload'
+import MediaPickerButton from '../../components/media/MediaPickerButton'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
 
@@ -249,38 +249,27 @@ export default function AdminProduk() {
             <p className="text-sm font-medium text-gray-700 mb-2">
               Foto Produk <span className="text-xs text-gray-400">(cover + hingga 4 foto tambahan)</span>
             </p>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               {/* Cover — 2 col wide */}
-              <div className="col-span-2">
-                <ImageUpload
-                  label="Cover"
+              <div className="md:col-span-2">
+                <MediaPickerButton
+                  label="Cover Produk Utama"
                   value={coverImage ?? undefined}
                   onChange={setCoverImage}
-                  maxInputMB={10}
+                  folder="Produk"
+                  moduleName="Produk"
                 />
               </div>
               {/* 4 extras */}
               {extraImages.map((img, idx) => (
-                <div key={idx} className="relative">
-                  {img ? (
-                    <div className="relative aspect-square rounded-xl overflow-hidden border border-gray-200">
-                      <img src={img} alt="" className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => updateExtra(idx, null)}
-                        className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
-                      >
-                        <XIcon size={10} />
-                      </button>
-                    </div>
-                  ) : (
-                    <ImageUpload
-                      label={`Foto ${idx + 1}`}
-                      value={undefined}
-                      onChange={(v) => updateExtra(idx, v)}
-                      maxInputMB={10}
-                    />
-                  )}
+                <div key={idx}>
+                  <MediaPickerButton
+                    label={`Galeri ${idx + 1}`}
+                    value={img ?? undefined}
+                    onChange={(v) => updateExtra(idx, v)}
+                    folder="Produk"
+                    moduleName="Produk"
+                  />
                 </div>
               ))}
             </div>

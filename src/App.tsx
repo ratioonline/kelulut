@@ -28,6 +28,7 @@ import AdminArtikel from './pages/admin/AdminArtikel'
 import AdminGaleri from './pages/admin/AdminGaleri'
 import AdminProgram from './pages/admin/AdminProgram'
 import AdminHero from './pages/admin/AdminHero'
+import AdminMedia from './pages/admin/AdminMedia'
 
 // Auth store
 import { useAuthStore } from './stores/authStore'
@@ -62,6 +63,7 @@ function AppRoutes() {
         <Route element={<AdminLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="media"     element={<AdminMedia />} />
           <Route path="hero"      element={<AdminHero />} />
           <Route path="reservasi" element={<AdminReservasi />} />
           <Route path="produk" element={<AdminProduk />} />

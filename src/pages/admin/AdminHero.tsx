@@ -13,7 +13,7 @@ import Modal, { ConfirmModal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
-import ImageUpload from '../../components/ui/ImageUpload'
+import MediaPickerButton from '../../components/media/MediaPickerButton'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import { Badge } from '../../components/ui/Badge'
 import toast from 'react-hot-toast'
@@ -349,14 +349,13 @@ export default function AdminHero() {
         <form id="hero-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
           {/* Background image */}
-          <ImageUpload
-            label="Foto Background"
+          <MediaPickerButton
+            label="Foto Background Hero Banner"
             value={imageBase64 ?? undefined}
             onChange={(v) => { setImageBase64(v); if (v) setImageError('') }}
             error={imageError}
-            maxInputMB={10}
-            maxDimension={1600}
-            quality={0.85}
+            folder="Banner"
+            moduleName="Hero Slider"
           />
 
           {/* Title */}
