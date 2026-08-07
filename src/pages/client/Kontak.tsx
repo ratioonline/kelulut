@@ -40,21 +40,7 @@ export default function KontakPage() {
         />
       </Helmet>
 
-      {/* Hero */}
-      <section className="pt-24 pb-16 bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white text-center">
-        <div className="max-w-3xl mx-auto px-4">
-          <span className="text-[#F5A623] text-sm font-semibold uppercase tracking-widest">
-            Hubungi Kami
-          </span>
-          <h1 className="mt-2 text-4xl md:text-5xl font-bold">Kontak</h1>
-          <p className="mt-4 text-gray-200 text-lg">
-            Ada pertanyaan? Kami siap membantu Anda. Hubungi kami melalui berbagai saluran di
-            bawah ini.
-          </p>
-        </div>
-      </section>
-
-      <section className="py-16 bg-[#FAF3E0]">
+      <section className="pt-24 pb-16 bg-[#FAF3E0]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12">
             {/* Contact info */}

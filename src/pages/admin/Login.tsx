@@ -48,9 +48,11 @@ export default function AdminLogin() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-[#F5A623] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Leaf size={32} className="text-white" />
-          </div>
+          <img
+            src="/logo.png"
+            alt="Trigona Reborn Logo"
+            className="w-20 h-20 object-contain rounded-full border-2 border-[#F5A623] mx-auto mb-4 shadow-xl"
+          />
           <h1 className="text-2xl font-bold text-white">Kebun Kelulut Sangatta</h1>
           <p className="text-gray-300 mt-1 text-sm">Admin Panel</p>
         </div>

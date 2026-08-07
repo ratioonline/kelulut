@@ -140,21 +140,17 @@ export default function ProdukPage() {
         <meta name="description" content="Beli madu kelulut murni berkualitas tinggi dari kebun kami." />
       </Helmet>
 
-      {/* Hero strip */}
-      <section className="pt-20 bg-gradient-to-r from-[#1B4332] to-[#2D6A4F]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">Produk Madu Kelulut</h1>
-          <p className="text-gray-300 text-sm">100% alami, langsung dari kebun kami di Sangatta</p>
-
-          {/* Search bar */}
-          <div className="mt-5 max-w-xl relative">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8">
+        {/* Search & Mobile Filter Button */}
+        <div className="mb-6 flex items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Cari produk..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-xl text-sm bg-white shadow focus:outline-none focus:ring-2 focus:ring-[#F5A623]"
+              className="w-full pl-10 pr-9 py-2.5 rounded-xl text-sm bg-white border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]"
             />
             {search && (
               <button
@@ -165,10 +161,14 @@ export default function ProdukPage() {
               </button>
             )}
           </div>
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+          >
+            <SlidersHorizontal size={16} /> Filter
+          </button>
         </div>
-      </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-6">
 
           {/* ── Sidebar (desktop) ── */}

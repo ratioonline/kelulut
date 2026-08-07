@@ -64,16 +64,11 @@ export default function Navbar() {
 
           {/* ── Logo ── */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div
-              className={cn(
-                'w-9 h-9 rounded-xl flex items-center justify-center transition-colors duration-300',
-                isDark
-                  ? 'bg-white/20 group-hover:bg-white/30 backdrop-blur-sm'
-                  : 'bg-[#2D6A4F] group-hover:bg-[#1B4332]'
-              )}
-            >
-              <Leaf size={20} className="text-white" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="Trigona Reborn Logo"
+              className="w-10 h-10 object-contain rounded-full shadow-sm ring-1 ring-amber-500/30 transition-transform duration-300 group-hover:scale-105"
+            />
             <div className="leading-tight">
               <p
                 className={cn(

@@ -41,10 +41,12 @@ export default function AdminLayout() {
   const Sidebar = (
     <aside className="flex flex-col h-full bg-[#1B4332] text-white w-64">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-6 py-5 border-b border-white/10">
-        <div className="w-8 h-8 bg-[#F5A623] rounded-lg flex items-center justify-center">
-          <Leaf size={18} className="text-white" />
-        </div>
+      <div className="flex items-center gap-2.5 px-6 py-5 border-b border-white/10">
+        <img
+          src="/logo.png"
+          alt="Trigona Reborn Logo"
+          className="w-9 h-9 object-contain rounded-full ring-1 ring-[#F5A623]/40 shadow-sm"
+        />
         <div className="leading-tight">
           <p className="text-sm font-bold">Kebun Kelulut</p>
           <p className="text-xs text-[#F5A623]">Admin Panel</p>

@@ -55,21 +55,8 @@ export default function GaleriPage() {
         />
       </Helmet>
 
-      {/* Hero */}
-      <section className="pt-24 pb-16 bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white text-center">
-        <div className="max-w-3xl mx-auto px-4">
-          <span className="text-[#F5A623] text-sm font-semibold uppercase tracking-widest">
-            Foto & Video
-          </span>
-          <h1 className="mt-2 text-4xl md:text-5xl font-bold">Galeri</h1>
-          <p className="mt-4 text-gray-200 text-lg">
-            Dokumentasi kegiatan, fasilitas, dan momen berharga di Kebun Kelulut Sangatta.
-          </p>
-        </div>
-      </section>
-
       {/* Filter */}
-      <section className="py-6 bg-white border-b border-gray-100 sticky top-16 z-30">
+      <section className="pt-24 pb-4 bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 flex items-center gap-3 flex-wrap">
           <Filter size={16} className="text-gray-400" />
           {categories.map((cat) => (

@@ -100,62 +100,43 @@ export default function ArtikelPage() {
         />
       </Helmet>
 
-      {/* ── Hero ── */}
-      <section className="relative pt-24 pb-20 overflow-hidden bg-gradient-to-br from-[#1B4332] via-[#2D6A4F] to-[#1B4332]">
-        {/* decorative circles */}
-        <div className="absolute -top-20 -right-20 w-96 h-96 bg-white/5 rounded-full pointer-events-none" />
-        <div className="absolute bottom-0 left-10 w-48 h-48 bg-[#F5A623]/10 rounded-full pointer-events-none" />
+      {/* ── Category pills & Search ── */}
+      <div className="pt-24 bg-white border-b border-gray-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto scrollbar-hide">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActivecat(cat)}
+                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  activecat === cat
+                    ? 'bg-[#2D6A4F] text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
 
-        <div className="relative max-w-3xl mx-auto px-4 text-center">
-          <span className="inline-flex items-center gap-2 bg-[#F5A623]/20 text-[#F5A623] text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-4">
-            <BookOpen size={12} /> Blog & Edukasi
-          </span>
-          <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight">
-            Artikel Edukasi
-          </h1>
-          <p className="mt-4 text-gray-300 text-lg max-w-xl mx-auto">
-            Pelajari lebih dalam tentang lebah kelulut, budidaya, madu, dan
-            perannya bagi ekosistem hutan Kalimantan.
-          </p>
-
-          {/* Search */}
-          <div className="relative mt-8 max-w-md mx-auto">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <div className="relative w-full sm:w-72 shrink-0">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="Cari artikel…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-11 pr-10 py-3.5 rounded-2xl bg-white text-gray-800 text-sm shadow-lg focus:outline-none focus:ring-2 focus:ring-[#F5A623]"
+              className="w-full pl-9 pr-8 py-2 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#2D6A4F]"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
-                <X size={15} />
+                <X size={14} />
               </button>
             )}
           </div>
-        </div>
-      </section>
-
-      {/* ── Category pills ── */}
-      <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActivecat(cat)}
-              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
-                activecat === cat
-                  ? 'bg-[#2D6A4F] text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
         </div>
       </div>
 

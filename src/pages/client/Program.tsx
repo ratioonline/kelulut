@@ -45,22 +45,8 @@ export default function ProgramPage() {
         />
       </Helmet>
 
-      {/* Hero */}
-      <section className="pt-24 pb-16 bg-gradient-to-br from-[#1B4332] to-[#2D6A4F]">
-        <div className="max-w-4xl mx-auto px-4 text-center text-white">
-          <span className="text-[#F5A623] text-sm font-semibold uppercase tracking-widest">
-            Paket Kunjungan
-          </span>
-          <h1 className="mt-2 text-4xl md:text-5xl font-bold">Program Wisata</h1>
-          <p className="mt-4 text-gray-200 text-lg max-w-2xl mx-auto">
-            Nikmati berbagai paket wisata edukasi yang dirancang untuk memberikan pengalaman
-            terbaik bagi semua kalangan.
-          </p>
-        </div>
-      </section>
-
       {/* Programs */}
-      <section className="py-16 bg-[#FAF3E0]">
+      <section className="pt-24 pb-16 bg-[#FAF3E0]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {loading ? (
             <div className="flex justify-center py-20">

@@ -17,10 +17,12 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-9 h-9 bg-[#F5A623] rounded-xl flex items-center justify-center">
-                <Leaf size={20} className="text-white" />
-              </div>
+            <div className="flex items-center gap-2.5 mb-4">
+              <img
+                src="/logo.png"
+                alt="Trigona Reborn Logo"
+                className="w-10 h-10 object-contain rounded-full ring-1 ring-[#F5A623]/40 shadow-sm"
+              />
               <div className="leading-tight">
                 <p className="text-base font-bold">Kebun Kelulut</p>
                 <p className="text-xs text-[#F5A623]">Sangatta</p>
