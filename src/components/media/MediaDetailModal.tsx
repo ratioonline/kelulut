@@ -74,7 +74,7 @@ export default function MediaDetailModal({ item, isOpen, onClose }: MediaDetailM
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Detail Media" size="lg">
+      <Modal open={isOpen} onClose={onClose} title="Detail Media" size="lg">
         <div className="grid md:grid-cols-2 gap-6">
           {/* Left Column: Preview */}
           <div className="flex flex-col items-center justify-center bg-gray-900 rounded-2xl p-4 min-h-[300px] border border-gray-800 relative group">

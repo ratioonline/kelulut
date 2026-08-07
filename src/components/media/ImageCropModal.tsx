@@ -88,7 +88,7 @@ export default function ImageCropModal({
 
   return (
     <Modal
-      isOpen={isOpen}
+      open={isOpen}
       onClose={onClose}
       title="Edit & Crop Gambar"
       size="lg"
