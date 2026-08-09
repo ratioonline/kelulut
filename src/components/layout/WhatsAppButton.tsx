@@ -1,5 +1,5 @@
 export default function WhatsAppButton() {
-  const phone = '6285255136491'
+  const phone = '6282272611515'
   const message = encodeURIComponent('Halo, saya ingin bertanya tentang Kebun Kelulut Sangatta.')
   const href = `https://wa.me/${phone}?text=${message}`
 

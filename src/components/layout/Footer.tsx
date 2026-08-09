@@ -87,16 +87,25 @@ export default function Footer() {
                   Jl. PERTAMINA KM.4, Sangatta Selatan - Kutai Timur, Kalimantan Timur
                 </a>
               </li>
-              <li className="flex items-center gap-3 text-sm text-gray-300">
-                <Phone size={16} className="text-[#F5A623] shrink-0" />
-                <a
-                  href="https://wa.me/6285255136491?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta."
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-white transition-colors"
-                >
-                  085255136491
-                </a>
+              <li className="flex items-start gap-3 text-sm text-gray-300">
+                <Phone size={16} className="text-[#F5A623] mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  {[
+                    { name: 'Sabil', phone: '082272611515', display: '0822-7261-1515' },
+                    { name: 'Triyono', phone: '081347245985', display: '0813-4724-5985' },
+                    { name: 'Fuad', phone: '081348500517', display: '0813-4850-0517' },
+                  ].map(({ name, phone, display }) => (
+                    <a
+                      key={name}
+                      href={`https://wa.me/62${phone.substring(1)}?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta.`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block hover:text-white transition-colors"
+                    >
+                      {display} <span className="text-gray-500">({name})</span>
+                    </a>
+                  ))}
+                </div>
               </li>
               <li className="flex items-center gap-3 text-sm text-gray-300">
                 <Mail size={16} className="text-[#F5A623] shrink-0" />
