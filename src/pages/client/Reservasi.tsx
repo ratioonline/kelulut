@@ -225,14 +225,24 @@ export default function ReservasiPage() {
                   <p className="text-sm text-gray-600 mb-4">
                     Hubungi kami langsung via WhatsApp untuk mendiskusikan kebutuhan kunjungan Anda.
                   </p>
-                  <a
-                    href="https://wa.me/6281234567890"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
-                  >
-                    Chat WhatsApp
-                  </a>
+                  <div className="space-y-2">
+                    {[
+                      { name: 'Sabil', phone: '082272611515', display: '0822-7261-1515' },
+                      { name: 'Triyono', phone: '081347245985', display: '0813-4724-5985' },
+                      { name: 'Fuad', phone: '081348500517', display: '0813-4850-0517' },
+                    ].map(({ name, phone, display }) => (
+                      <a
+                        key={name}
+                        href={`https://wa.me/62${phone.substring(1)}?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20reservasi%20Kebun%20Kelulut%20Sangatta.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between w-full bg-green-50 hover:bg-green-100 border border-green-200 text-green-800 font-medium py-2 px-3 rounded-xl transition-colors text-sm"
+                      >
+                        <span>{display}</span>
+                        <span className="text-xs text-green-600">({name})</span>
+                      </a>
+                    ))}
+                  </div>
                 </CardBody>
               </Card>
             </div>
