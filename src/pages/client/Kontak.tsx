@@ -1,19 +1,13 @@
 import { Helmet } from 'react-helmet-async'
-import { MapPin, Phone, Mail, Clock, MessageCircle } from 'lucide-react'
+import { MapPin, Phone, Mail, Clock, MessageCircle, Instagram } from 'lucide-react'
 import { Card, CardBody } from '../../components/ui/Card'
 
 const contactInfo = [
   {
     icon: MapPin,
     label: 'Alamat',
-    value: 'Jl. PERTAMINA KM.4, Sangatta Selatan - Kutai Timur, Kalimantan Timur',
+    value: 'JL. Pertamina, KM.04, RT.02, Sangatta Selatan',
     href: 'https://maps.app.goo.gl/TP2Z1tvJb4iJrxMQ7',
-  },
-  {
-    icon: Phone,
-    label: 'Telepon / WhatsApp',
-    value: '085255136491',
-    href: 'https://wa.me/6285255136491?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta.',
   },
   {
     icon: Mail,
@@ -27,6 +21,12 @@ const contactInfo = [
     value: 'Senin–Jumat 08.00–17.00 | Sabtu–Minggu 07.00–18.00',
     href: null,
   },
+]
+
+const contactPersons = [
+  { name: 'Sabil', phone: '082272611515', display: '0822-7261-1515' },
+  { name: 'Triyono', phone: '081347245985', display: '0813-4724-5985' },
+  { name: 'Fuad', phone: '081348500517', display: '0813-4850-0517' },
 ]
 
 export default function KontakPage() {
@@ -75,16 +75,54 @@ export default function KontakPage() {
                 ))}
               </div>
 
-              {/* WhatsApp CTA */}
-              <a
-                href="https://wa.me/6285255136491?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta."
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-6 flex items-center justify-center gap-3 w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3.5 rounded-xl transition-colors shadow-md"
-              >
-                <MessageCircle size={20} />
-                Chat via WhatsApp
-              </a>
+              {/* Contact Person - 3 individual cards */}
+              <div className="mt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">Contact Person</p>
+                {contactPersons.map(({ name, phone, display }) => (
+                  <Card key={name}>
+                    <CardBody className="flex items-center justify-between py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-[#2D6A4F]/10 rounded-xl flex items-center justify-center shrink-0">
+                          <Phone size={16} className="text-[#2D6A4F]" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-400 font-medium">{name}</p>
+                          <p className="text-sm font-semibold text-gray-800">{display}</p>
+                        </div>
+                      </div>
+                      <a
+                        href={`https://wa.me/62${phone.substring(1)}?text=Halo%2C%20saya%20ingin%20bertanya%20tentang%20Kebun%20Kelulut%20Sangatta.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                      >
+                        <MessageCircle size={13} />
+                        WhatsApp
+                      </a>
+                    </CardBody>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Instagram */}
+              <Card className="mt-4">
+                <CardBody className="flex items-start gap-4 py-4">
+                  <div className="w-10 h-10 bg-[#2D6A4F]/10 rounded-xl flex items-center justify-center shrink-0">
+                    <Instagram size={18} className="text-[#2D6A4F]" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Instagram</p>
+                    <a
+                      href="https://www.instagram.com/kebunkelulut.sgt"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-gray-800 hover:text-[#2D6A4F] transition-colors"
+                    >
+                      @kebunkelulut.sgt
+                    </a>
+                  </div>
+                </CardBody>
+              </Card>
             </div>
 
             {/* Map */}
