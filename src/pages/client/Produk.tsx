@@ -23,7 +23,7 @@ const SORT_OPTIONS = [
   { value: 'rating', label: 'Rating Tertinggi' },
 ]
 
-const ITEMS_PER_PAGE = 20
+const ITEMS_PER_PAGE = 8
 
 export default function ProdukPage() {
   const [products, setProducts] = useState<Product[]>([])
@@ -54,7 +54,7 @@ export default function ProdukPage() {
   const topProducts = useMemo(() => {
     return [...products]
       .sort((a, b) => (b.sold_count ?? 0) - (a.sold_count ?? 0))
-      .slice(0, 10)
+      .slice(0, 5)
   }, [products])
 
   const categories = useMemo(

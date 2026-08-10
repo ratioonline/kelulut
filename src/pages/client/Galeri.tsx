@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import type { GalleryItem } from '../../types/database'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
-const ITEMS_PER_PAGE = 16
+const ITEMS_PER_PAGE = 8
 
 export default function GaleriPage() {
   const [items, setItems] = useState<GalleryItem[]>([])
