@@ -180,6 +180,7 @@ export interface Database {
           author_id: string | null
           published: boolean
           created_at: string
+          umkm_id: string | null
         }
         Insert: {
           id?: string
@@ -191,6 +192,7 @@ export interface Database {
           author_id?: string | null
           published?: boolean
           created_at?: string
+          umkm_id?: string | null
         }
         Update: {
           id?: string
@@ -202,6 +204,7 @@ export interface Database {
           author_id?: string | null
           published?: boolean
           created_at?: string
+          umkm_id?: string | null
         }
       }
       gallery: {
@@ -212,6 +215,7 @@ export interface Database {
           image_url: string
           category: string | null
           created_at: string
+          umkm_id: string | null
         }
         Insert: {
           id?: string
@@ -220,6 +224,7 @@ export interface Database {
           image_url: string
           category?: string | null
           created_at?: string
+          umkm_id?: string | null
         }
         Update: {
           id?: string
@@ -228,6 +233,7 @@ export interface Database {
           image_url?: string
           category?: string | null
           created_at?: string
+          umkm_id?: string | null
         }
       }
       hero_slides: {

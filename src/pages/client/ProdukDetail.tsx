@@ -278,21 +278,24 @@ export default function ProdukDetail() {
 
                 {/* UMKM Info */}
                 {umkm && (
-                  <div className="mt-2 p-4 bg-gray-50 border border-gray-100 rounded-xl flex items-center gap-3">
-                    {umkm.logo ? (
-                      <img src={umkm.logo} alt={umkm.name} className="w-12 h-12 rounded-lg object-cover" />
-                    ) : (
-                      <div className="w-12 h-12 bg-[#2D6A4F] rounded-lg flex items-center justify-center text-white font-bold">
-                        {umkm.name[0]}
+                  <div className="mt-2 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                    <p className="text-xs text-gray-500 mb-2">Dijual oleh:</p>
+                    <div className="flex items-center gap-3">
+                      {umkm.logo ? (
+                        <img src={umkm.logo} alt={umkm.name} className="w-12 h-12 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 bg-[#2D6A4F] rounded-lg flex items-center justify-center text-white font-bold">
+                          {umkm.name[0]}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{umkm.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{umkm.city ?? 'Sangatta'}</p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{umkm.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{umkm.city ?? 'Sangatta'}</p>
+                      <Link to={`/umkm/${umkm.slug}`} className="shrink-0 text-xs font-semibold text-[#2D6A4F] hover:underline">
+                        Kunjungi Toko
+                      </Link>
                     </div>
-                    <Link to={`/umkm/${umkm.slug}`} className="shrink-0 text-xs font-semibold text-[#2D6A4F] hover:underline">
-                      Kunjungi Toko
-                    </Link>
                   </div>
                 )}
 

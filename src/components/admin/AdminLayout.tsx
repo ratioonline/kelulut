@@ -19,20 +19,21 @@ import { useAuthStore } from '../../stores/authStore'
 import toast from 'react-hot-toast'
 
 const navItems = [
-  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/admin/media',     icon: Images,          label: 'Media Library' },
-  { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider' },
-  { to: '/admin/reservasi', icon: CalendarCheck,   label: 'Reservasi' },
-  { to: '/admin/produk',    icon: ShoppingBag,     label: 'Produk' },
-  { to: '/admin/artikel',   icon: FileText,        label: 'Artikel' },
-  { to: '/admin/galeri',    icon: Images,          label: 'Galeri' },
-  { to: '/admin/program',   icon: BookOpen,        label: 'Program' },
-  { to: '/admin/umkm-management', icon: Store,     label: 'UMKM' },
+  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/profil',    icon: Store,           label: 'Profil UMKM', roles: ['umkm_user'] },
+  { to: '/admin/media',     icon: Images,          label: 'Media Library', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider', roles: ['super_admin'] },
+  { to: '/admin/reservasi', icon: CalendarCheck,   label: 'Reservasi', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/produk',    icon: ShoppingBag,     label: 'Produk', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/artikel',   icon: FileText,        label: 'Artikel', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/galeri',    icon: Images,          label: 'Galeri', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/program',   icon: BookOpen,        label: 'Program', roles: ['super_admin'] },
+  { to: '/admin/umkm-management', icon: Store,     label: 'UMKM', roles: ['super_admin'] },
 ]
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { signOut, user } = useAuthStore()
+  const { signOut, user, role } = useAuthStore()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -58,7 +59,7 @@ export default function AdminLayout() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems.filter(i => i.roles.includes(role as string)).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}

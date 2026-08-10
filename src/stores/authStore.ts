@@ -125,7 +125,7 @@ export const useAuthStore = create<AuthState>()(
             password,
           })
           if (error) return { error: error.message }
-          set({ user: data.user, session: data.session })
+          set({ user: data.user, session: data.session, initialized: true })
           await get().fetchUserProfile()
           await get().fetchMyUmkm()
           return { error: null }

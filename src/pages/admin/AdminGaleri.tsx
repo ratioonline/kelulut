@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Image } from 'lucide-react'
+import { Plus, Trash2, Image, Store } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 import type { GalleryItem } from '../../types/database'
 import Modal, { ConfirmModal } from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
@@ -21,19 +22,27 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function AdminGaleri() {
-  const [items, setItems] = useState<GalleryItem[]>([])
+  const [items, setItems] = useState<(GalleryItem & { umkm?: { name: string } | null })[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GalleryItem | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [imageBase64, setImageBase64] = useState<string | null>(null)
   const [imageError, setImageError] = useState('')
+  const { role, myUmkm } = useAuthStore()
 
   const fetchData = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('gallery')
-      .select('*')
+      .select('*, umkm:umkms(name)')
       .order('created_at', { ascending: false })
+      
+    if (role === 'umkm_user') {
+      if (myUmkm) query = query.eq('umkm_id', myUmkm.id)
+      else query = query.eq('umkm_id', '00000000-0000-0000-0000-000000000000')
+    }
+
+    const { data } = await query
     if (data) setItems(data)
     setLoading(false)
   }
@@ -66,6 +75,7 @@ export default function AdminGaleri() {
       description: data.description || null,
       image_url: imageBase64,
       category: data.category || null,
+      umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null,
     } as any)
     if (error) { toast.error('Gagal menambah foto'); return }
     toast.success('Foto berhasil ditambahkan')
@@ -113,6 +123,11 @@ export default function AdminGaleri() {
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/50 transition-all duration-300 flex flex-col items-center justify-center gap-2 p-2">
+                {item.umkm && (
+                  <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-[#F5A623] px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 z-10 shadow-sm border border-[#F5A623]/30">
+                    <Store size={10} /> {item.umkm.name}
+                  </div>
+                )}
                 {item.title && (
                   <p className="text-white text-xs font-medium text-center opacity-0 group-hover:opacity-100 transition-opacity line-clamp-2">
                     {item.title}

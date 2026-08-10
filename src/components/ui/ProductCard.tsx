@@ -29,10 +29,18 @@ export default function ProductCard({
     ? Math.round((1 - displayPrice / originalPrice) * 100)
     : 0
 
-  const thumb =
-    (product.images?.length ? product.images[0] : null) ??
-    product.image_url ??
-    'https://images.unsplash.com/photo-1471943311424-646960669fbc?w=400&q=60'
+  const thumb = (() => {
+    const raw =
+      (product.images?.length ? product.images[0] : null) ??
+      product.image_url ??
+      'https://images.unsplash.com/photo-1471943311424-646960669fbc?w=400&q=60'
+    // Resize gambar Supabase Storage untuk thumbnail
+    if (raw.includes('supabase') && raw.includes('/storage/')) {
+      const separator = raw.includes('?') ? '&' : '?'
+      return `${raw}${separator}width=300&quality=75`
+    }
+    return raw
+  })()
 
   return (
     <div
@@ -48,6 +56,7 @@ export default function ProductCard({
           src={thumb}
           alt={product.name}
           loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
 

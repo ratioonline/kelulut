@@ -118,31 +118,37 @@ ALTER TABLE review_replies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- ── user_profiles ──
+DROP POLICY IF EXISTS "Users can view own profile" ON user_profiles;
 CREATE POLICY "Users can view own profile"
   ON user_profiles FOR SELECT
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Admin can view all profiles" ON user_profiles;
 CREATE POLICY "Admin can view all profiles"
   ON user_profiles FOR SELECT
   USING (
     EXISTS (SELECT 1 FROM user_profiles up WHERE up.id = auth.uid() AND up.role = 'super_admin')
   );
 
+DROP POLICY IF EXISTS "Users can update own profile" ON user_profiles;
 CREATE POLICY "Users can update own profile"
   ON user_profiles FOR UPDATE
   USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Admin can manage all profiles" ON user_profiles;
 CREATE POLICY "Admin can manage all profiles"
   ON user_profiles FOR ALL
   USING (
     EXISTS (SELECT 1 FROM user_profiles up WHERE up.id = auth.uid() AND up.role = 'super_admin')
   );
 
+DROP POLICY IF EXISTS "Auth users can insert own profile" ON user_profiles;
 CREATE POLICY "Auth users can insert own profile"
   ON user_profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
 
 -- ── umkms ──
+DROP POLICY IF EXISTS "Public can view active UMKM" ON umkms;
 CREATE POLICY "Public can view active UMKM"
   ON umkms FOR SELECT
   USING (
@@ -151,16 +157,19 @@ CREATE POLICY "Public can view active UMKM"
     OR EXISTS (SELECT 1 FROM user_profiles up WHERE up.id = auth.uid() AND up.role = 'super_admin')
   );
 
+DROP POLICY IF EXISTS "Owner can update own UMKM" ON umkms;
 CREATE POLICY "Owner can update own UMKM"
   ON umkms FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admin full access UMKM" ON umkms;
 CREATE POLICY "Admin full access UMKM"
   ON umkms FOR ALL
   USING (
     EXISTS (SELECT 1 FROM user_profiles up WHERE up.id = auth.uid() AND up.role = 'super_admin')
   );
 
+DROP POLICY IF EXISTS "Owner can insert UMKM" ON umkms;
 CREATE POLICY "Owner can insert UMKM"
   ON umkms FOR INSERT
   WITH CHECK (
@@ -169,14 +178,17 @@ CREATE POLICY "Owner can insert UMKM"
   );
 
 -- ── categories ──
+DROP POLICY IF EXISTS "Categories viewable by all" ON categories;
 CREATE POLICY "Categories viewable by all"
   ON categories FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Categories manageable by authenticated" ON categories;
 CREATE POLICY "Categories manageable by authenticated"
   ON categories FOR ALL
   USING (auth.role() = 'authenticated');
 
 -- ── stock_movements ──
+DROP POLICY IF EXISTS "Stock movements viewable by owner or admin" ON stock_movements;
 CREATE POLICY "Stock movements viewable by owner or admin"
   ON stock_movements FOR SELECT
   USING (
@@ -189,6 +201,7 @@ CREATE POLICY "Stock movements viewable by owner or admin"
     )
   );
 
+DROP POLICY IF EXISTS "Stock movements insertable by owner or admin" ON stock_movements;
 CREATE POLICY "Stock movements insertable by owner or admin"
   ON stock_movements FOR INSERT
   WITH CHECK (
@@ -196,9 +209,11 @@ CREATE POLICY "Stock movements insertable by owner or admin"
   );
 
 -- ── review_replies ──
+DROP POLICY IF EXISTS "Review replies viewable by all" ON review_replies;
 CREATE POLICY "Review replies viewable by all"
   ON review_replies FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "UMKM owner can insert reply" ON review_replies;
 CREATE POLICY "UMKM owner can insert reply"
   ON review_replies FOR INSERT
   WITH CHECK (
@@ -206,11 +221,13 @@ CREATE POLICY "UMKM owner can insert reply"
     OR EXISTS (SELECT 1 FROM user_profiles up WHERE up.id = auth.uid() AND up.role = 'super_admin')
   );
 
+DROP POLICY IF EXISTS "UMKM owner can update own reply" ON review_replies;
 CREATE POLICY "UMKM owner can update own reply"
   ON review_replies FOR UPDATE
   USING (auth.uid() = user_id);
 
 -- ── audit_logs ──
+DROP POLICY IF EXISTS "Audit logs viewable by owner or admin" ON audit_logs;
 CREATE POLICY "Audit logs viewable by owner or admin"
   ON audit_logs FOR SELECT
   USING (
@@ -221,6 +238,7 @@ CREATE POLICY "Audit logs viewable by owner or admin"
     )
   );
 
+DROP POLICY IF EXISTS "Audit logs insertable by authenticated" ON audit_logs;
 CREATE POLICY "Audit logs insertable by authenticated"
   ON audit_logs FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');

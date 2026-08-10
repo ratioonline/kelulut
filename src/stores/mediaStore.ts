@@ -15,6 +15,7 @@ export interface MediaItem {
   module: string
   createdAt: string
   altText?: string
+  umkm_id?: string
 }
 
 export interface FolderItem {

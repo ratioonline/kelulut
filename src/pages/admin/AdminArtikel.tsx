@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye, EyeOff, Store, ShieldCheck } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 import type { Article } from '../../types/database'
 import { formatDate, slugify } from '../../lib/utils'
 import { Card, CardBody } from '../../components/ui/Card'
@@ -25,19 +26,27 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function AdminArtikel() {
-  const [articles, setArticles] = useState<Article[]>([])
+  const [articles, setArticles] = useState<(Article & { umkm?: { name: string } | null })[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Article | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Article | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const { role, myUmkm } = useAuthStore()
 
   const fetchData = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('articles')
-      .select('*')
+      .select('*, umkm:umkms(name)')
       .order('created_at', { ascending: false })
+      
+    if (role === 'umkm_user') {
+      if (myUmkm) query = query.eq('umkm_id', myUmkm.id)
+      else query = query.eq('umkm_id', '00000000-0000-0000-0000-000000000000')
+    }
+
+    const { data } = await query
     if (data) setArticles(data)
     setLoading(false)
   }
@@ -78,6 +87,7 @@ export default function AdminArtikel() {
       content: data.content,
       thumbnail_url: imageBase64 || null,
       published: data.published,
+      umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : (editing ? undefined : null),
     }
     if (editing) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,7 +147,7 @@ export default function AdminArtikel() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Judul', 'Tanggal', 'Status', 'Aksi'].map((h) => (
+                    {['Judul', 'Penulis', 'Tanggal', 'Status', 'Aksi'].map((h) => (
                       <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
                     ))}
                   </tr>
@@ -155,6 +165,13 @@ export default function AdminArtikel() {
                             <p className="text-xs text-gray-400 line-clamp-1">{a.excerpt}</p>
                           </div>
                         </div>
+                      </td>
+                      <td className="py-3 px-4 text-gray-600 whitespace-nowrap text-xs font-medium">
+                        {a.umkm ? (
+                          <span className="flex items-center gap-1.5"><Store size={14} className="text-[#F5A623]" /> {a.umkm.name}</span>
+                        ) : (
+                          <span className="flex items-center gap-1.5"><ShieldCheck size={14} className="text-[#2D6A4F]" /> Official</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-gray-500 whitespace-nowrap text-xs">{formatDate(a.created_at)}</td>
                       <td className="py-3 px-4">

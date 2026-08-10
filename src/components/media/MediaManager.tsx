@@ -16,6 +16,7 @@ import {
 import Modal, { ConfirmModal } from '../ui/Modal'
 import Button from '../ui/Button'
 import { useMediaStore, MediaItem } from '../../stores/mediaStore'
+import { useAuthStore } from '../../stores/authStore'
 import { processImageFile, formatBytes, ProcessedMedia } from '../../lib/mediaUtils'
 import ImageCropModal from './ImageCropModal'
 import MediaDetailModal from './MediaDetailModal'
@@ -61,6 +62,7 @@ export default function MediaManager({
     clearSelection,
     scanExistingAppImages,
   } = useMediaStore()
+  const { role, myUmkm } = useAuthStore()
 
   const [activeTab, setActiveTab] = useState<'upload' | 'library'>('library')
   const initialFolder = defaultFolder === 'semua' ? 'Lainnya' : defaultFolder
@@ -161,6 +163,7 @@ export default function MediaManager({
           folder: folderToSave,
           module: moduleName,
           altText: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+          umkm_id: role === 'umkm_user' ? (myUmkm?.id || undefined) : undefined,
         })
 
         setUploadProgress(Math.round(((i + 1) / validFiles.length) * 100))
@@ -182,6 +185,12 @@ export default function MediaManager({
   // Filtered & Sorted items
   const filteredItems = useMemo(() => {
     let result = [...items]
+
+    // Role-based UMKM isolation
+    if (role === 'umkm_user') {
+      const umkmId = myUmkm?.id
+      result = result.filter(i => !i.umkm_id || i.umkm_id === umkmId)
+    }
 
     // Folder filter
     if (selectedFolder !== 'semua') {
@@ -225,7 +234,7 @@ export default function MediaManager({
     }
 
     return result
-  }, [items, selectedFolder, selectedModule, searchQuery, sortBy])
+  }, [items, selectedFolder, selectedModule, searchQuery, sortBy, role, myUmkm])
 
   // Bulk actions
   const handleBulkDelete = () => {

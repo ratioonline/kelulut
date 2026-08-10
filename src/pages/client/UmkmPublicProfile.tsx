@@ -121,14 +121,16 @@ export default function UmkmPublicProfile() {
 
             {/* WhatsApp CTA */}
             {waLink && (
-              <a
-                href={waLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="shrink-0 bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all flex items-center gap-2"
-              >
-                <Phone size={18} /> Hubungi via WhatsApp
-              </a>
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-50 md:static md:p-0 md:bg-transparent md:border-0 md:w-auto md:shrink-0">
+                <a
+                  href={waLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full md:w-auto bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-xl transition-all flex items-center justify-center md:justify-start gap-2 shadow-lg md:shadow-none"
+                >
+                  <Phone size={18} /> Hubungi via WhatsApp
+                </a>
+              </div>
             )}
           </div>
 

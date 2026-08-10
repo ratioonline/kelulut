@@ -16,16 +16,19 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function AdminLogin() {
-  const { signIn, user, initialize } = useAuthStore()
+  const { signIn, user, role, initialize } = useAuthStore()
   const navigate = useNavigate()
 
   useEffect(() => {
     initialize()
   }, [initialize])
 
+  // Jika sudah login dan punya role valid, redirect ke dashboard
   useEffect(() => {
-    if (user) navigate('/admin/dashboard', { replace: true })
-  }, [user, navigate])
+    if (user && (role === 'super_admin' || role === 'umkm_user')) {
+      navigate('/admin/dashboard', { replace: true })
+    }
+  }, [user, role, navigate])
 
   const {
     register,
@@ -38,8 +41,16 @@ export default function AdminLogin() {
     if (error) {
       toast.error(error === 'Invalid login credentials' ? 'Email atau password salah.' : error)
     } else {
-      toast.success('Berhasil masuk!')
-      navigate('/admin/dashboard', { replace: true })
+      const currentRole = useAuthStore.getState().role
+      console.log('[Login] signIn berhasil, role:', currentRole)
+      if (!currentRole) {
+        toast.error('Gagal memuat profil. Hubungi admin.')
+      } else {
+        toast.success('Berhasil masuk!')
+        // Gunakan window.location untuk memaksa full reload
+        // agar ProtectedRoute membaca state auth yang sudah benar
+        window.location.href = '/admin/dashboard'
+      }
     }
   }
 
@@ -99,3 +110,4 @@ export default function AdminLogin() {
     </div>
   )
 }
+

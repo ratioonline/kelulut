@@ -8,6 +8,7 @@ import { Card, CardBody } from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
+import { useAuthStore } from '../../stores/authStore'
 
 const STATUS_OPTIONS = ['Semua', 'pending', 'confirmed', 'done', 'cancelled'] as const
 type StatusFilter = (typeof STATUS_OPTIONS)[number]
@@ -28,12 +29,13 @@ export default function AdminReservasi() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Reservation | null>(null)
   const [updating, setUpdating] = useState(false)
+  const { role } = useAuthStore()
 
   const fetchData = async () => {
     const { data } = await supabase
       .from('reservations')
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('visit_date', { ascending: false })
     if (data) setReservations(data)
     setLoading(false)
   }
@@ -204,7 +206,7 @@ export default function AdminReservasi() {
               <StatusBadge status={selected.status} />
             </div>
 
-            {selected.status !== 'done' && selected.status !== 'cancelled' && (
+            {role === 'super_admin' && selected.status !== 'done' && selected.status !== 'cancelled' && (
               <div>
                 <p className="text-xs text-gray-400 font-medium mb-2">Ubah Status</p>
                 <div className="flex flex-wrap gap-2">

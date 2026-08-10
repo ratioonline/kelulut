@@ -11,7 +11,6 @@ const navLinks = [
   { to: '/produk', label: 'Produk' },
   { to: '/artikel', label: 'Artikel' },
   { to: '/galeri', label: 'Galeri' },
-  { to: '/umkm-directory', label: 'UMKM' },
   { to: '/kontak', label: 'Kontak' },
 ]
 

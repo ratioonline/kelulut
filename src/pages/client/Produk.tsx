@@ -23,6 +23,8 @@ const SORT_OPTIONS = [
   { value: 'rating', label: 'Rating Tertinggi' },
 ]
 
+const ITEMS_PER_PAGE = 20
+
 export default function ProdukPage() {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,16 +34,18 @@ export default function ProdukPage() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
 
   const carouselRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase
       .from('products')
-      .select('*')
+      .select('id, name, slug, price, discount_price, stock, sold_count, rating, rating_count, images, image_url, category, is_available, created_at')
       .eq('is_available', true)
-      .then(({ data }) => {
-        if (data) setProducts(data)
+      .then(({ data, error }) => {
+        if (error) console.error('Error fetching products:', error)
+        if (data) setProducts(data as Product[])
         setLoading(false)
       })
   }, [])
@@ -108,7 +112,13 @@ export default function ProdukPage() {
     setPriceMin('')
     setPriceMax('')
     setSort('terbaru')
+    setVisibleCount(ITEMS_PER_PAGE)
   }
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(ITEMS_PER_PAGE)
+  }, [category, search, sort, priceMin, priceMax])
 
   const hasFilter = category !== 'Semua' || search || priceMin || priceMax
 
@@ -393,11 +403,23 @@ export default function ProdukPage() {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                  {filtered.map((p, idx) => (
-                    <ProductCard key={p.id} product={p} isTop={idx < 2 && category === 'Semua'} />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                    {filtered.slice(0, visibleCount).map((p, idx) => (
+                      <ProductCard key={p.id} product={p} isTop={idx < 2 && category === 'Semua'} />
+                    ))}
+                  </div>
+                  {visibleCount < filtered.length && (
+                    <div className="flex justify-center pt-6">
+                      <button
+                        onClick={() => setVisibleCount((c) => c + ITEMS_PER_PAGE)}
+                        className="px-8 py-2.5 bg-[#EE4D2D] hover:bg-[#d03d1e] text-white text-sm font-bold rounded-xl shadow transition-colors active:scale-95"
+                      >
+                        Muat Lebih Banyak ({filtered.length - visibleCount} lagi)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

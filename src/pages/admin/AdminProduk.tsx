@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
+import { useAuthStore } from '../../stores/authStore'
 import type { Product, Umkm } from '../../types/database'
 import { formatCurrency, slugify } from '../../lib/utils'
 import { Card, CardBody } from '../../components/ui/Card'
@@ -18,13 +19,19 @@ import toast from 'react-hot-toast'
 
 const schema = z.object({
   name: z.string().min(2, 'Nama minimal 2 karakter'),
+  sku: z.string().optional().nullable(),
+  short_description: z.string().max(100, 'Maksimal 100 karakter').optional().nullable(),
   description: z.string().optional(),
   details: z.string().optional(),
   price: z.number({ invalid_type_error: 'Harga harus angka' }).min(0),
   discount_price: z.number().min(0).nullable().optional(),
   stock: z.number({ invalid_type_error: 'Stok harus angka' }).min(0),
+  minimum_stock: z.number().min(0).optional().default(5),
+  unit: z.string().optional().default('pcs'),
   weight_gram: z.number().min(0).nullable().optional(),
   category: z.string().optional(),
+  umkm_id: z.string().nullable().optional(),
+  status: z.enum(['draft', 'active', 'inactive']).optional().default('active'),
   is_available: z.boolean(),
 })
 type FormData = z.infer<typeof schema>
@@ -38,19 +45,32 @@ export default function AdminProduk() {
   const [editing, setEditing] = useState<(Product & { umkm?: Umkm | null }) | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [stockTarget, setStockTarget] = useState<Product | null>(null)
+  const [quickStock, setQuickStock] = useState(0)
+  const [umkmList, setUmkmList] = useState<Umkm[]>([])
+  const { role, myUmkm } = useAuthStore()
 
   // Image state: main cover + up to 4 extra
   const [coverImage, setCoverImage] = useState<string | null>(null)
   const [extraImages, setExtraImages] = useState<(string | null)[]>([null, null, null, null])
 
   const fetchData = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('products')
       .select('*, umkm:umkms(*)')
       .order('created_at', { ascending: false })
+    
+    if (role === 'umkm_user') {
+      if (myUmkm) query = query.eq('umkm_id', myUmkm.id)
+      else query = query.eq('umkm_id', '00000000-0000-0000-0000-000000000000') // Force empty if no UMKM
+    }
+
+    const { data } = await query
     if (data) {
       setProducts(data as (Product & { umkm?: Umkm | null })[])
     }
+    const { data: umkms } = await supabase.from('umkms').select('*').order('name')
+    if (umkms) setUmkmList(umkms as Umkm[])
     setLoading(false)
   }
 
@@ -74,7 +94,7 @@ export default function AdminProduk() {
     setEditing(null)
     setCoverImage(null)
     setExtraImages([null, null, null, null])
-    reset({ is_available: true, stock: 0, price: 0, discount_price: null })
+    reset({ is_available: true, stock: 0, price: 0, discount_price: null, umkm_id: null, status: 'active', minimum_stock: 5, unit: 'pcs', sku: '', short_description: '' })
     setModalOpen(true)
   }
 
@@ -85,13 +105,19 @@ export default function AdminProduk() {
     setExtraImages(extras)
     reset({
       name: product.name,
+      sku: product.sku ?? '',
+      short_description: product.short_description ?? '',
       description: product.description ?? '',
       details: product.details ?? '',
       price: product.price ?? 0,
       discount_price: product.discount_price ?? null,
       stock: product.stock ?? 0,
+      minimum_stock: product.minimum_stock ?? 5,
+      unit: product.unit ?? 'pcs',
       weight_gram: product.weight_gram ?? null,
       category: product.category ?? '',
+      umkm_id: product.umkm_id ?? null,
+      status: product.status ?? 'active',
       is_available: product.is_available,
     })
     setModalOpen(true)
@@ -102,15 +128,21 @@ export default function AdminProduk() {
     const payload = {
       name: data.name,
       slug: slugify(data.name),
+      sku: data.sku || null,
+      short_description: data.short_description || null,
       description: data.description || null,
       details: data.details || null,
       price: data.price,
       discount_price: data.discount_price || null,
       stock: data.stock,
+      minimum_stock: data.minimum_stock,
+      unit: data.unit,
       weight_gram: data.weight_gram || null,
       image_url: coverImage || null,
       images: allImages,
       category: data.category || null,
+      umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : (data.umkm_id || null),
+      status: data.status,
       is_available: data.is_available,
     }
 
@@ -141,6 +173,14 @@ export default function AdminProduk() {
 
   const updateExtra = (idx: number, val: string | null) => {
     setExtraImages((prev) => prev.map((v, i) => (i === idx ? val : v)))
+  }
+
+  const handleStockUpdate = async () => {
+    if (!stockTarget) return
+    const { error } = await supabase.from('products').update({ stock: quickStock }).eq('id', stockTarget.id)
+    if (error) { toast.error('Gagal update stok') }
+    else { toast.success('Stok diperbarui'); await fetchData() }
+    setStockTarget(null)
   }
 
   return (
@@ -211,7 +251,20 @@ export default function AdminProduk() {
                         <p className="font-medium text-[#F5A623] whitespace-nowrap">{formatCurrency(p.price ?? 0)}</p>
                         {p.discount_price && <p className="text-xs text-red-500">{formatCurrency(p.discount_price)}</p>}
                       </td>
-                      <td className="py-3 px-4 text-gray-600">{p.stock}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${p.stock === 0 ? 'text-red-500' : p.stock && p.stock <= (p.minimum_stock || 5) ? 'text-yellow-600' : 'text-gray-600'}`}>
+                            {p.stock} {p.unit || 'pcs'}
+                          </span>
+                          <button 
+                            onClick={() => { setStockTarget(p); setQuickStock(p.stock || 0); }}
+                            className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-[#2D6A4F] transition-colors"
+                            title="Update Stok Cepat"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-gray-500">{p.sold_count ?? 0}</td>
                       <td className="py-3 px-4">
                         <Badge variant={p.is_available ? 'green' : 'red'}>
@@ -280,8 +333,13 @@ export default function AdminProduk() {
             </div>
           </div>
 
-          <Input label="Nama Produk" required error={errors.name?.message} {...register('name')} />
-          <Textarea label="Deskripsi" rows={3} {...register('description')} />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Nama Produk *" required error={errors.name?.message} {...register('name')} />
+            <Input label="SKU" placeholder="Opsional" {...register('sku')} />
+          </div>
+          
+          <Input label="Deskripsi Singkat" placeholder="Maks 100 karakter" error={errors.short_description?.message} {...register('short_description')} />
+          <Textarea label="Deskripsi Lengkap" rows={3} {...register('description')} />
           <Textarea label="Detail Produk" rows={2} placeholder="Komposisi, cara penggunaan, dll." {...register('details')} />
 
           <div className="grid grid-cols-2 gap-3">
@@ -289,17 +347,73 @@ export default function AdminProduk() {
             <Input label="Harga Diskon (Rp)" type="number" min={0} placeholder="Kosongkan jika tidak ada" {...register('discount_price', { setValueAs: (v) => v === '' ? null : Number(v) })} />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Input label="Stok" type="number" min={0} required error={errors.stock?.message} {...register('stock', { valueAsNumber: true })} />
-            <Input label="Berat (gram)" type="number" min={0} placeholder="mis. 250" {...register('weight_gram', { setValueAs: (v) => v === '' ? null : Number(v) })} />
-            <Input label="Kategori" placeholder="Madu, Suplemen..." {...register('category')} />
+            <Input label="Min. Stok" type="number" min={0} required error={errors.minimum_stock?.message} {...register('minimum_stock', { valueAsNumber: true })} />
+            <Input label="Satuan" placeholder="pcs, botol..." required error={errors.unit?.message} {...register('unit')} />
+            <Input label="Berat (gr)" type="number" min={0} placeholder="Opsional" {...register('weight_gram', { setValueAs: (v) => v === '' ? null : Number(v) })} />
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="Kategori" placeholder="Madu, Suplemen..." {...register('category')} />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                {...register('status')}
+                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F] text-sm"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="draft">Draft</option>
+              </select>
+            </div>
+          </div>
+
+          {role === 'super_admin' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Kepemilikan UMKM</label>
+              <select
+                {...register('umkm_id')}
+                className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F] text-sm"
+              >
+                <option value="">-- Official (Kebun Kelulut) --</option>
+                {umkmList.map(u => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Tentukan apakah produk ini milik UMKM atau Official.</p>
+            </div>
+          )}
 
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" className="w-4 h-4 rounded accent-[#2D6A4F]" {...register('is_available')} />
             <span className="text-sm text-gray-700">Produk tersedia untuk dijual</span>
           </label>
         </form>
+      </Modal>
+
+      <Modal
+        open={!!stockTarget}
+        onClose={() => setStockTarget(null)}
+        title="Update Stok Cepat"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setStockTarget(null)}>Batal</Button>
+            <Button onClick={handleStockUpdate}>Simpan</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">Update jumlah stok untuk produk <strong>{stockTarget?.name}</strong>.</p>
+          <Input 
+            label="Jumlah Stok Saat Ini" 
+            type="number" 
+            min={0}
+            value={quickStock}
+            onChange={(e) => setQuickStock(Number(e.target.value))}
+          />
+        </div>
       </Modal>
 
       <ConfirmModal
