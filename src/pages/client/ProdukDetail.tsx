@@ -6,7 +6,7 @@ import {
   ShieldCheck, Truck, RefreshCw, Star, ChevronRight,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import type { Product, ProductReview } from '../../types/database'
+import type { Product, ProductReview, Umkm } from '../../types/database'
 import { formatCurrency, formatDate } from '../../lib/utils'
 import { useCartStore } from '../../stores/cartStore'
 import StarRating from '../../components/ui/StarRating'
@@ -20,6 +20,7 @@ export default function ProdukDetail() {
   const { slug } = useParams<{ slug: string }>()
   const [product, setProduct] = useState<Product | null>(null)
   const [reviews, setReviews] = useState<ProductReview[]>([])
+  const [umkm, setUmkm] = useState<Umkm | null>(null)
   const [related, setRelated] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [activeImg, setActiveImg] = useState(0)
@@ -55,6 +56,12 @@ export default function ProdukDetail() {
       ])
       setReviews((rv as ProductReview[]) ?? [])
       setRelated((rel as Product[]) ?? [])
+
+      if ((prod as Product).umkm_id) {
+        const { data: uData } = await supabase.from('umkms').select('*').eq('id', (prod as Product).umkm_id).single()
+        if (uData) setUmkm(uData as Umkm)
+      }
+
       setLoading(false)
     })
   }, [slug])
@@ -239,23 +246,55 @@ export default function ProdukDetail() {
                 )}
 
                 {/* Action buttons */}
-                <div className="flex gap-3 mt-1">
-                  <button
-                    onClick={handleAddCart}
-                    disabled={product.stock === 0}
-                    className="flex-1 flex items-center justify-center gap-2 border-2 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#2D6A4F]/5 font-semibold py-3 rounded-xl transition-all active:scale-95 disabled:opacity-40"
-                  >
-                    <ShoppingCart size={17} />
-                    Keranjang
-                  </button>
-                  <button
-                    onClick={handleBuyNow}
-                    disabled={product.stock === 0}
-                    className="flex-1 bg-[#F5A623] hover:bg-[#e09520] text-white font-bold py-3 rounded-xl transition-all active:scale-95 disabled:opacity-40"
-                  >
-                    Beli Sekarang
-                  </button>
+                <div className="flex flex-col gap-3 mt-1">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleAddCart}
+                      disabled={product.stock === 0}
+                      className="flex-1 flex items-center justify-center gap-2 border-2 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#2D6A4F]/5 font-semibold py-3 rounded-xl transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      <ShoppingCart size={17} />
+                      Keranjang
+                    </button>
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={product.stock === 0}
+                      className="flex-1 bg-[#F5A623] hover:bg-[#e09520] text-white font-bold py-3 rounded-xl transition-all active:scale-95 disabled:opacity-40"
+                    >
+                      Beli Sekarang
+                    </button>
+                  </div>
+                  {umkm?.whatsapp && (
+                    <a
+                      href={`https://wa.me/${umkm.whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo, saya tertarik dengan produk ${product.name} dari ${umkm.name}.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      Hubungi via WhatsApp
+                    </a>
+                  )}
                 </div>
+
+                {/* UMKM Info */}
+                {umkm && (
+                  <div className="mt-2 p-4 bg-gray-50 border border-gray-100 rounded-xl flex items-center gap-3">
+                    {umkm.logo ? (
+                      <img src={umkm.logo} alt={umkm.name} className="w-12 h-12 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 bg-[#2D6A4F] rounded-lg flex items-center justify-center text-white font-bold">
+                        {umkm.name[0]}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{umkm.name}</p>
+                      <p className="text-xs text-gray-500 truncate">{umkm.city ?? 'Sangatta'}</p>
+                    </div>
+                    <Link to={`/umkm/${umkm.slug}`} className="shrink-0 text-xs font-semibold text-[#2D6A4F] hover:underline">
+                      Kunjungi Toko
+                    </Link>
+                  </div>
+                )}
 
                 {/* Guarantees */}
                 <div className="grid grid-cols-3 gap-2 border-t border-gray-100 pt-4">

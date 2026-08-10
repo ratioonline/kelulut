@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
-import type { Product } from '../../types/database'
+import type { Product, Umkm } from '../../types/database'
 import { formatCurrency, slugify } from '../../lib/utils'
 import { Card, CardBody } from '../../components/ui/Card'
 import { Badge } from '../../components/ui/Badge'
@@ -30,12 +30,12 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function AdminProduk() {
-  const [products, setProducts] = useState<Product[]>([])
-  const [filtered, setFiltered] = useState<Product[]>([])
+  const [products, setProducts] = useState<(Product & { umkm?: Umkm | null })[]>([])
+  const [filtered, setFiltered] = useState<(Product & { umkm?: Umkm | null })[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<Product | null>(null)
+  const [editing, setEditing] = useState<(Product & { umkm?: Umkm | null }) | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -46,9 +46,11 @@ export default function AdminProduk() {
   const fetchData = async () => {
     const { data } = await supabase
       .from('products')
-      .select('*')
+      .select('*, umkm:umkms(*)')
       .order('created_at', { ascending: false })
-    if (data) setProducts(data)
+    if (data) {
+      setProducts(data as (Product & { umkm?: Umkm | null })[])
+    }
     setLoading(false)
   }
 
@@ -171,7 +173,7 @@ export default function AdminProduk() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {['Produk', 'Harga', 'Diskon', 'Stok', 'Terjual', 'Status', 'Aksi'].map((h) => (
+                    {['Produk', 'UMKM', 'Harga', 'Stok', 'Terjual', 'Status', 'Aksi'].map((h) => (
                       <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -198,13 +200,16 @@ export default function AdminProduk() {
                           </div>
                         </div>
                       </td>
-                      <td className="py-3 px-4 font-medium text-[#F5A623] whitespace-nowrap">
-                        {formatCurrency(p.price ?? 0)}
+                      <td className="py-3 px-4">
+                        {p.umkm ? (
+                          <span className="text-sm text-gray-700">{p.umkm.name}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic">Official</span>
+                        )}
                       </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {p.discount_price ? (
-                          <span className="text-red-500 font-medium">{formatCurrency(p.discount_price)}</span>
-                        ) : <span className="text-gray-300">—</span>}
+                      <td className="py-3 px-4">
+                        <p className="font-medium text-[#F5A623] whitespace-nowrap">{formatCurrency(p.price ?? 0)}</p>
+                        {p.discount_price && <p className="text-xs text-red-500">{formatCurrency(p.discount_price)}</p>}
                       </td>
                       <td className="py-3 px-4 text-gray-600">{p.stock}</td>
                       <td className="py-3 px-4 text-gray-500">{p.sold_count ?? 0}</td>

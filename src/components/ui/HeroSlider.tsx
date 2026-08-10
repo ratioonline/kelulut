@@ -34,16 +34,20 @@ export default function HeroSlider() {
 
   // Fetch slides dari Supabase
   useEffect(() => {
-    supabase
-      .from('hero_slides')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-      .then(({ data }) => {
-        if (data && data.length > 0) setSlides(data as HeroSlide[])
-        else setSlides(FALLBACK_SLIDES)
-      })
-      .catch(() => setSlides(FALLBACK_SLIDES))
+    const fetchSlides = async () => {
+      const { data, error } = await supabase
+        .from('hero_slides')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true })
+      
+      if (!error && data && data.length > 0) {
+        setSlides(data as HeroSlide[])
+      } else {
+        setSlides(FALLBACK_SLIDES)
+      }
+    }
+    fetchSlides()
   }, [])
 
   const activeSlides = slides.length > 0 ? slides : FALLBACK_SLIDES

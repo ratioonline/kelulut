@@ -12,6 +12,7 @@ import {
   Leaf,
   ChevronRight,
   LayoutTemplate,
+  Store,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/admin/artikel',   icon: FileText,        label: 'Artikel' },
   { to: '/admin/galeri',    icon: Images,          label: 'Galeri' },
   { to: '/admin/program',   icon: BookOpen,        label: 'Program' },
+  { to: '/admin/umkm-management', icon: Store,     label: 'UMKM' },
 ]
 
 export default function AdminLayout() {

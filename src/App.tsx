@@ -29,6 +29,25 @@ import AdminGaleri from './pages/admin/AdminGaleri'
 import AdminProgram from './pages/admin/AdminProgram'
 import AdminHero from './pages/admin/AdminHero'
 import AdminMedia from './pages/admin/AdminMedia'
+import AdminUmkmManagement from './pages/admin/AdminUmkmManagement'
+import AdminUmkmDetail from './pages/admin/AdminUmkmDetail'
+
+// UMKM pages
+import UmkmProtectedRoute from './components/umkm/UmkmProtectedRoute'
+import UmkmLayout from './components/umkm/UmkmLayout'
+import UmkmLogin from './pages/umkm/UmkmLogin'
+import UmkmDashboard from './pages/umkm/UmkmDashboard'
+import UmkmProfile from './pages/umkm/UmkmProfile'
+import UmkmProducts from './pages/umkm/UmkmProducts'
+import UmkmProductForm from './pages/umkm/UmkmProductForm'
+import UmkmProductDetail from './pages/umkm/UmkmProductDetail'
+import UmkmStock from './pages/umkm/UmkmStock'
+import UmkmReviews from './pages/umkm/UmkmReviews'
+import UmkmMedia from './pages/umkm/UmkmMedia'
+import UmkmSettings from './pages/umkm/UmkmSettings'
+
+import UmkmDirectory from './pages/client/UmkmDirectory'
+import UmkmPublicProfile from './pages/client/UmkmPublicProfile'
 
 // Auth store
 import { useAuthStore } from './stores/authStore'
@@ -53,6 +72,28 @@ function AppRoutes() {
         <Route path="galeri" element={<GaleriPage />} />
         <Route path="kontak" element={<KontakPage />} />
         <Route path="reservasi" element={<ReservasiPage />} />
+        <Route path="umkm-directory" element={<UmkmDirectory />} />
+        <Route path="umkm/:slug" element={<UmkmPublicProfile />} />
+      </Route>
+
+      {/* ── UMKM Login (no layout) ── */}
+      <Route path="umkm/login" element={<UmkmLogin />} />
+
+      {/* ── UMKM Dashboard Routes ── */}
+      <Route path="umkm" element={<UmkmProtectedRoute />}>
+        <Route element={<UmkmLayout />}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<UmkmDashboard />} />
+          <Route path="profile" element={<UmkmProfile />} />
+          <Route path="products" element={<UmkmProducts />} />
+          <Route path="products/create" element={<UmkmProductForm />} />
+          <Route path="products/:id" element={<UmkmProductDetail />} />
+          <Route path="products/:id/edit" element={<UmkmProductForm />} />
+          <Route path="stock" element={<UmkmStock />} />
+          <Route path="reviews" element={<UmkmReviews />} />
+          <Route path="media" element={<UmkmMedia />} />
+          <Route path="settings" element={<UmkmSettings />} />
+        </Route>
       </Route>
 
       {/* ── Admin Login (no layout) ── */}
@@ -70,6 +111,8 @@ function AppRoutes() {
           <Route path="artikel" element={<AdminArtikel />} />
           <Route path="galeri" element={<AdminGaleri />} />
           <Route path="program" element={<AdminProgram />} />
+          <Route path="umkm-management" element={<AdminUmkmManagement />} />
+          <Route path="umkm-management/:id" element={<AdminUmkmDetail />} />
         </Route>
       </Route>
 

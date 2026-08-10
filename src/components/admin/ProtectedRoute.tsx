@@ -9,7 +9,7 @@ export default function ProtectedRoute() {
     return <LoadingSpinner fullPage />
   }
 
-  if (!user) {
+  if (!user || user.role === 'umkm_user') {
     return <Navigate to="/admin/login" replace />
   }
 
