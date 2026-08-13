@@ -25,7 +25,7 @@ export default function AdminLogin() {
 
   // Jika sudah login dan punya role valid, redirect ke dashboard
   useEffect(() => {
-    if (user && (role === 'super_admin' || role === 'umkm_user')) {
+    if (user && (role === 'super_admin' || role === 'umkm_user' || role === 'proktor' || role === 'kontributor' || role === 'guest')) {
       navigate('/admin/dashboard', { replace: true })
     }
   }, [user, role, navigate])

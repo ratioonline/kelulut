@@ -18,7 +18,7 @@ export default function ProtectedRoute() {
   }
 
   // User belum login atau role tidak valid
-  const allowedRoles = ['super_admin', 'umkm_user', 'proktor', 'kontributor']
+  const allowedRoles = ['super_admin', 'umkm_user', 'proktor', 'kontributor', 'guest']
   if (!user || !allowedRoles.includes(role as string)) {
     console.log('[ProtectedRoute] REJECTED:', { user: !!user, role })
     return <Navigate to="/admin/login" replace />

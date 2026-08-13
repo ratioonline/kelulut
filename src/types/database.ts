@@ -310,28 +310,31 @@ export interface Database {
       user_profiles: {
         Row: {
           id: string
-          role: 'super_admin' | 'umkm_user'
+          role: 'super_admin' | 'umkm_user' | 'proktor' | 'kontributor' | 'guest'
           full_name: string | null
           phone: string | null
           avatar_url: string | null
+          email: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id: string
-          role?: 'super_admin' | 'umkm_user'
+          role?: 'super_admin' | 'umkm_user' | 'proktor' | 'kontributor' | 'guest'
           full_name?: string | null
           phone?: string | null
           avatar_url?: string | null
+          email?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          role?: 'super_admin' | 'umkm_user'
+          role?: 'super_admin' | 'umkm_user' | 'proktor' | 'kontributor' | 'guest'
           full_name?: string | null
           phone?: string | null
           avatar_url?: string | null
+          email?: string | null
           created_at?: string
           updated_at?: string
         }
