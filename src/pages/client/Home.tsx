@@ -3,19 +3,22 @@ import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { ArrowRight, Star, Users, Award, Leaf, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import type { Program } from '../../types/database'
+import type { Program, OrganizationProfile } from '../../types/database'
 import { formatCurrency } from '../../lib/utils'
 import Button from '../../components/ui/Button'
 import SectionHeader from '../../components/ui/SectionHeader'
 import { Card, CardBody } from '../../components/ui/Card'
 import HeroSlider from '../../components/ui/HeroSlider'
 
-const stats = [
+// Fallback default jika DB belum diisi
+const DEFAULT_STATS = [
   { icon: Users, value: '2000+', label: 'Pengunjung' },
-  { icon: Award, value: '4+', label: 'Program Wisata' },
-  { icon: Star, value: '4.9', label: 'Rating' },
-  { icon: Leaf, value: '100%', label: 'Alami' },
+  { icon: Award, value: '4+',    label: 'Program Wisata' },
+  { icon: Star,  value: '4.9',   label: 'Rating' },
+  { icon: Leaf,  value: '100%',  label: 'Alami' },
 ]
+
+const STAT_ICONS = [Users, Award, Star, Leaf]
 
 const testimonials = [
   {
@@ -43,15 +46,35 @@ const testimonials = [
 
 export default function Home() {
   const [programs, setPrograms] = useState<Program[]>([])
+  const [org, setOrg] = useState<OrganizationProfile | null>(null)
 
   useEffect(() => {
+    // Fetch programs
     supabase
       .from('programs')
       .select('*')
       .eq('is_active', true)
       .limit(4)
       .then(({ data }) => data && setPrograms(data))
+
+    // Fetch profil organisasi
+    supabase
+      .from('organization_profile')
+      .select('*')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .single()
+      .then(({ data }) => data && setOrg(data as OrganizationProfile))
   }, [])
+
+  // Bangun stats dari DB atau fallback default
+  const stats = org
+    ? [
+        { icon: STAT_ICONS[0], value: org.stat1_value ?? '2000+', label: org.stat1_label ?? 'Pengunjung' },
+        { icon: STAT_ICONS[1], value: org.stat2_value ?? '4+',    label: org.stat2_label ?? 'Program Wisata' },
+        { icon: STAT_ICONS[2], value: org.stat3_value ?? '4.9',   label: org.stat3_label ?? 'Rating' },
+        { icon: STAT_ICONS[3], value: org.stat4_value ?? '100%',  label: org.stat4_label ?? 'Alami' },
+      ]
+    : DEFAULT_STATS
 
   return (
     <>
@@ -92,33 +115,49 @@ export default function Home() {
                 Tentang Kami
               </span>
               <h2 className="mt-2 text-3xl md:text-4xl font-bold text-[#1B4332] leading-tight">
-                Mengenal Lebih Dekat <br />
-                Kebun Kelulut Sangatta
+                {org?.name
+                  ? <>Mengenal Lebih Dekat <br />{org.name}</>
+                  : <>Mengenal Lebih Dekat <br />Kebun Kelulut Sangatta</>
+                }
               </h2>
-              <p className="mt-4 text-gray-600 leading-relaxed">
-                Kebun Kelulut Sangatta adalah destinasi wisata edukasi yang berfokus pada
-                pelestarian dan pengembangan lebah kelulut (<em>stingless bee</em>) di Kalimantan
-                Timur. Kami berkomitmen untuk mengedukasi masyarakat tentang pentingnya lebah
-                kelulut bagi ekosistem.
-              </p>
-              <p className="mt-4 text-gray-600 leading-relaxed">
-                Didirikan dengan semangat konservasi, kami menawarkan pengalaman langsung yang
-                menggabungkan edukasi, wisata alam, dan produk madu berkualitas tinggi dari lebah
-                kelulut lokal Kalimantan.
-              </p>
+              {org?.about_short ? (
+                <p className="mt-4 text-gray-600 leading-relaxed">{org.about_short}</p>
+              ) : (
+                <>
+                  <p className="mt-4 text-gray-600 leading-relaxed">
+                    Kebun Kelulut Sangatta adalah destinasi wisata edukasi yang berfokus pada
+                    pelestarian dan pengembangan lebah kelulut (<em>stingless bee</em>) di Kalimantan
+                    Timur. Kami berkomitmen untuk mengedukasi masyarakat tentang pentingnya lebah
+                    kelulut bagi ekosistem.
+                  </p>
+                  <p className="mt-4 text-gray-600 leading-relaxed">
+                    Didirikan dengan semangat konservasi, kami menawarkan pengalaman langsung yang
+                    menggabungkan edukasi, wisata alam, dan produk madu berkualitas tinggi dari lebah
+                    kelulut lokal Kalimantan.
+                  </p>
+                </>
+              )}
               <div className="mt-6 flex flex-col sm:flex-row gap-4">
                 <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
                   <Leaf className="text-[#2D6A4F]" size={20} />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">100% Organik</p>
-                    <p className="text-xs text-gray-500">Tanpa pestisida</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {org?.badge1_title ?? '100% Organik'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {org?.badge1_subtitle ?? 'Tanpa pestisida'}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 shadow-sm">
                   <Award className="text-[#F5A623]" size={20} />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">Tersertifikasi</p>
-                    <p className="text-xs text-gray-500">Produk berkualitas</p>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {org?.badge2_title ?? 'Tersertifikasi'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {org?.badge2_subtitle ?? 'Produk berkualitas'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -129,13 +168,13 @@ export default function Home() {
             </div>
             <div className="relative">
               <img
-                src="https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=700&q=80"
-                alt="Kebun Kelulut Sangatta"
+                src={org?.about_image_url ?? 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=700&q=80'}
+                alt={org?.name ?? 'Kebun Kelulut Sangatta'}
                 className="rounded-2xl shadow-xl w-full object-cover aspect-[4/3]"
               />
               <div className="absolute -bottom-5 -left-5 bg-[#F5A623] text-white rounded-2xl px-5 py-3 shadow-lg">
-                <p className="text-2xl font-bold">5+ Tahun</p>
-                <p className="text-xs">Pengalaman Budidaya</p>
+                <p className="text-2xl font-bold">{org?.experience_years ?? 5}+ Tahun</p>
+                <p className="text-xs">{org?.experience_label ?? 'Pengalaman Budidaya'}</p>
               </div>
             </div>
           </div>

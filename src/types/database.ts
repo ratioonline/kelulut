@@ -568,6 +568,7 @@ export interface Database {
           name: string | null
           tagline: string | null
           about: string | null
+          about_short: string | null
           vision: string | null
           mission: string | null
           address: string | null
@@ -581,7 +582,24 @@ export interface Database {
           tiktok: string | null
           logo_url: string | null
           cover_url: string | null
+          about_image_url: string | null
           year_founded: number | null
+          experience_years: number | null
+          experience_label: string | null
+          badge1_icon: string | null
+          badge1_title: string | null
+          badge1_subtitle: string | null
+          badge2_icon: string | null
+          badge2_title: string | null
+          badge2_subtitle: string | null
+          stat1_value: string | null
+          stat1_label: string | null
+          stat2_value: string | null
+          stat2_label: string | null
+          stat3_value: string | null
+          stat3_label: string | null
+          stat4_value: string | null
+          stat4_label: string | null
           updated_at: string
         }
         Insert: {
@@ -589,6 +607,7 @@ export interface Database {
           name?: string | null
           tagline?: string | null
           about?: string | null
+          about_short?: string | null
           vision?: string | null
           mission?: string | null
           address?: string | null
@@ -602,7 +621,24 @@ export interface Database {
           tiktok?: string | null
           logo_url?: string | null
           cover_url?: string | null
+          about_image_url?: string | null
           year_founded?: number | null
+          experience_years?: number | null
+          experience_label?: string | null
+          badge1_icon?: string | null
+          badge1_title?: string | null
+          badge1_subtitle?: string | null
+          badge2_icon?: string | null
+          badge2_title?: string | null
+          badge2_subtitle?: string | null
+          stat1_value?: string | null
+          stat1_label?: string | null
+          stat2_value?: string | null
+          stat2_label?: string | null
+          stat3_value?: string | null
+          stat3_label?: string | null
+          stat4_value?: string | null
+          stat4_label?: string | null
           updated_at?: string
         }
         Update: {
@@ -610,6 +646,7 @@ export interface Database {
           name?: string | null
           tagline?: string | null
           about?: string | null
+          about_short?: string | null
           vision?: string | null
           mission?: string | null
           address?: string | null
@@ -623,7 +660,24 @@ export interface Database {
           tiktok?: string | null
           logo_url?: string | null
           cover_url?: string | null
+          about_image_url?: string | null
           year_founded?: number | null
+          experience_years?: number | null
+          experience_label?: string | null
+          badge1_icon?: string | null
+          badge1_title?: string | null
+          badge1_subtitle?: string | null
+          badge2_icon?: string | null
+          badge2_title?: string | null
+          badge2_subtitle?: string | null
+          stat1_value?: string | null
+          stat1_label?: string | null
+          stat2_value?: string | null
+          stat2_label?: string | null
+          stat3_value?: string | null
+          stat3_label?: string | null
+          stat4_value?: string | null
+          stat4_label?: string | null
           updated_at?: string
         }
       }
