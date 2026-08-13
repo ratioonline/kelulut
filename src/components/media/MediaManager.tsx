@@ -236,11 +236,12 @@ export default function MediaManager({
 
   // Debounced Search Trigger
   useEffect(() => {
+    if (!isOpen && !isInline) return
     const timer = setTimeout(() => {
       fetchMedia(true) // Reset pagination when filter changes
     }, 400)
     return () => clearTimeout(timer)
-  }, [searchQuery])
+  }, [searchQuery, isOpen, isInline])
 
   // Handlers for infinite scroll
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {

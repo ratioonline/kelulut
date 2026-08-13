@@ -371,14 +371,16 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
       {/* Media Manager for Inserting Images */}
-      <MediaManager
-        isOpen={isMediaManagerOpen}
-        onClose={() => setIsMediaManagerOpen(false)}
-        onSelect={insertMedia}
-        multiple={true}
-        defaultFolder="Artikel"
-        moduleName="Artikel"
-      />
+      {isMediaManagerOpen && (
+        <MediaManager
+          isOpen={isMediaManagerOpen}
+          onClose={() => setIsMediaManagerOpen(false)}
+          onSelect={insertMedia}
+          multiple={true}
+          defaultFolder="Artikel"
+          moduleName="Artikel"
+        />
+      )}
 
       {/* Image Edit Modal */}
       <Modal 
