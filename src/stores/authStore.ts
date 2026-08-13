@@ -11,7 +11,7 @@ interface AuthState {
   initialized: boolean
   userProfile: UserProfile | null
   myUmkm: Umkm | null
-  role: 'super_admin' | 'umkm_user' | null
+  role: 'super_admin' | 'umkm_user' | 'proktor' | 'kontributor' | null
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   initialize: () => Promise<void>

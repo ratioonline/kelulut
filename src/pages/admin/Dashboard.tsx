@@ -74,8 +74,21 @@ export default function Dashboard() {
         { name: '30', kunjungan: 349, pendapatan: 4300 },
       ]
 
+      // Filter and sort for upcoming reservations
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      
+      const upcomingReservations = (reservations || [])
+        .filter(r => {
+          const visitDate = new Date(r.visit_date)
+          visitDate.setHours(0, 0, 0, 0)
+          // Filter status yang bukan rejected/cancelled (asumsi: pending, approved, completed masih relevan, atau hanya approved)
+          return visitDate.getTime() >= today.getTime()
+        })
+        .sort((a, b) => new Date(a.visit_date).getTime() - new Date(b.visit_date).getTime())
+
       setStats({ totalVisits, totalRevenue, totalOrders, totalItemsSold, umkmCount })
-      setRecentReservations((reservations || []).slice(0, 5))
+      setRecentReservations(upcomingReservations.slice(0, 5))
       setTopProducts((topProds || []) as Product[])
       setVisitTypes(visitData)
       setSalesData(mockSalesData)

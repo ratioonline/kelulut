@@ -30,6 +30,7 @@
     "react-helmet-async": "^2.0.5",
     "react-hook-form": "^7.54.0",
     "react-hot-toast": "^2.4.1",
+    "react-is": "^19.2.8",
     "react-router-dom": "^7.0.2",
     "recharts": "^3.10.1",
     "tailwind-merge": "^2.5.4",

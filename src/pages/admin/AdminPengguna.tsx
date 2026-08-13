@@ -102,8 +102,8 @@ export default function AdminPengguna() {
 
       const userId = authData.user.id
 
-      // 2. Insert into user_profiles
-      const { error: profileError } = await supabaseAdmin.from('user_profiles').insert({
+      // 2. Insert into user_profiles (upsert to handle auto-triggers)
+      const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
         id: userId,
         email: data.email,
         role: data.role,
