@@ -1,4 +1,4 @@
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
@@ -37,6 +37,12 @@ const CustomImage = Image.extend({
       style: {
         default: null,
       },
+      width: {
+        default: null,
+      },
+      height: {
+        default: null,
+      },
       'data-align': {
         default: 'center',
         parseHTML: element => element.getAttribute('data-align'),
@@ -65,6 +71,8 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
   const [altText, setAltText] = useState('')
   const [captionText, setCaptionText] = useState('')
   const [alignment, setAlignment] = useState<'left' | 'center' | 'right'>('center')
+  const [imgWidth, setImgWidth] = useState('')
+  const [imgHeight, setImgHeight] = useState('')
 
   const [isUploading, setIsUploading] = useState(false)
   
@@ -185,22 +193,6 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
       attributes: {
         class: 'prose prose-sm sm:prose-base focus:outline-none min-h-[300px] max-w-none p-4 w-full prose-img:cursor-pointer',
       },
-      handleClickOn: (view, pos, node, nodePos, event, direct) => {
-        if (node.type.name === 'image') {
-          // Open edit modal
-          const src = node.attrs.src
-          const alt = node.attrs.alt || ''
-          const title = node.attrs.title || '' // using title as caption
-          const align = node.attrs['data-align'] || 'center'
-          
-          setEditingImage({ pos: nodePos, src })
-          setAltText(alt)
-          setCaptionText(title)
-          setAlignment(align as 'left'|'center'|'right')
-          setIsEditModalOpen(true)
-        }
-        return false
-      },
       handlePaste: (view, event, slice) => {
         const items = event.clipboardData?.items
         if (!items) return false
@@ -271,6 +263,8 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
         title: captionText, // caption mapped to title
         'data-align': alignment,
         class: alignClass,
+        width: imgWidth || null,
+        height: imgHeight || null,
       })
       .run()
       
@@ -283,6 +277,31 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
     editor.chain().focus().setNodeSelection(editingImage.pos).deleteSelection().run()
     setIsEditModalOpen(false)
     setEditingImage(null)
+  }
+
+  const openImageEditModal = () => {
+    if (!editor) return
+    const { view, state } = editor
+    const { selection } = state
+    
+    // Check if an image is selected
+    if (selection.node && selection.node.type.name === 'image') {
+      const node = selection.node
+      const src = node.attrs.src
+      const alt = node.attrs.alt || ''
+      const title = node.attrs.title || ''
+      const align = node.attrs['data-align'] || 'center'
+      const w = node.attrs.width || ''
+      const h = node.attrs.height || ''
+      
+      setEditingImage({ pos: selection.from, src })
+      setAltText(alt)
+      setCaptionText(title)
+      setAlignment(align as 'left'|'center'|'right')
+      setImgWidth(w)
+      setImgHeight(h)
+      setIsEditModalOpen(true)
+    }
   }
 
   const setLink = useCallback(() => {
@@ -364,6 +383,35 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
 
         {/* Editor Content */}
         <div className="flex-1 overflow-y-auto max-h-[600px] min-h-[300px]">
+          {editor && (
+            <BubbleMenu 
+              editor={editor} 
+              shouldShow={({ editor }) => editor.isActive('image')}
+              tippyOptions={{ duration: 100 }}
+            >
+              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 flex items-center gap-1">
+                <ToolButton 
+                  onClick={() => editor.chain().focus().updateAttributes('image', { 'data-align': 'left', class: 'mr-auto rounded-xl max-w-full h-auto' }).run()} 
+                  isActive={editor.getAttributes('image')['data-align'] === 'left'} 
+                  icon={AlignLeft} title="Kiri" 
+                />
+                <ToolButton 
+                  onClick={() => editor.chain().focus().updateAttributes('image', { 'data-align': 'center', class: 'mx-auto block rounded-xl max-w-full h-auto' }).run()} 
+                  isActive={editor.getAttributes('image')['data-align'] === 'center'} 
+                  icon={AlignCenter} title="Tengah" 
+                />
+                <ToolButton 
+                  onClick={() => editor.chain().focus().updateAttributes('image', { 'data-align': 'right', class: 'ml-auto rounded-xl max-w-full h-auto' }).run()} 
+                  isActive={editor.getAttributes('image')['data-align'] === 'right'} 
+                  icon={AlignRight} title="Kanan" 
+                />
+                <div className="w-px h-5 bg-gray-300 mx-1"></div>
+                <Button size="sm" variant="ghost" onClick={openImageEditModal} className="h-8 px-2 text-xs">
+                  <Edit2 size={14} className="mr-1" /> Ukuran & Detail
+                </Button>
+              </div>
+            </BubbleMenu>
+          )}
           <EditorContent editor={editor} />
         </div>
       </div>
@@ -420,7 +468,7 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
           />
           
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-2">Perataan Gambar</label>
+            <label className="text-sm font-medium text-gray-700 block mb-2">Perataan Gambar (Posisi)</label>
             <div className="flex gap-2">
               <button 
                 onClick={() => setAlignment('left')}
@@ -441,6 +489,21 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
                 <AlignRight size={16} /> Kanan
               </button>
             </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <Input 
+              label="Lebar (px / %)" 
+              value={imgWidth} 
+              onChange={(e) => setImgWidth(e.target.value)} 
+              placeholder="mis. 300px atau 50%" 
+            />
+            <Input 
+              label="Tinggi (px / %)" 
+              value={imgHeight} 
+              onChange={(e) => setImgHeight(e.target.value)} 
+              placeholder="mis. auto atau 200px" 
+            />
           </div>
         </div>
       </Modal>
