@@ -246,24 +246,40 @@ export default function AdminPengguna() {
 
   // ── Hapus pengguna (TIDAK menghapus data UMKM) ─────────────────────────
   const handleDelete = async () => {
-    if (!supabaseAdmin || !deleteTarget) return
+    if (!deleteTarget) return
+
+    if (!supabaseAdmin) {
+      toast.error('Service Role Key tidak dikonfigurasi. Hubungi developer.')
+      setDeleteTarget(null)
+      return
+    }
 
     setIsSubmitting(true)
+    const targetId = deleteTarget.id
+    const targetUmkmId = deleteTarget.umkm_id
+
+    // Tutup modal lebih awal agar UI responsif
+    setDeleteTarget(null)
+
     try {
       // 1. Unlink user dari UMKM terlebih dahulu (data UMKM tetap aman)
-      if (deleteTarget.umkm_id) {
+      if (targetUmkmId) {
         const { error: unlinkErr } = await supabaseAdmin
           .from('umkms')
           .update({ user_id: null })
-          .eq('id', deleteTarget.umkm_id)
+          .eq('id', targetUmkmId)
         if (unlinkErr) throw new Error(`Gagal unlink UMKM: ${unlinkErr.message}`)
       }
 
       // 2. Hapus user_profiles
-      await supabaseAdmin.from('user_profiles').delete().eq('id', deleteTarget.id)
+      const { error: profileErr } = await supabaseAdmin
+        .from('user_profiles')
+        .delete()
+        .eq('id', targetId)
+      if (profileErr) throw new Error(`Gagal hapus profil: ${profileErr.message}`)
 
       // 3. Hapus auth user
-      const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(deleteTarget.id)
+      const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(targetId)
       if (authErr) throw new Error(authErr.message)
 
       toast.success('Pengguna berhasil dihapus. Data UMKM tetap tersimpan.')
@@ -272,7 +288,6 @@ export default function AdminPengguna() {
       toast.error(`Gagal menghapus: ${err.message}`)
     } finally {
       setIsSubmitting(false)
-      setDeleteTarget(null)
     }
   }
 
@@ -500,7 +515,7 @@ export default function AdminPengguna() {
       {/* ── Konfirmasi Hapus ── */}
       <ConfirmModal
         open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { if (!isSubmitting) setDeleteTarget(null) }}
         onConfirm={handleDelete}
         message={
           deleteTarget?.umkm_name

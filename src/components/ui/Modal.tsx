@@ -98,10 +98,15 @@ export function ConfirmModal({
   confirmLabel = 'Hapus',
   loading,
 }: ConfirmModalProps) {
+  const handleConfirm = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onConfirm()
+  }
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={loading ? () => {} : onClose}
       title={title}
       size="sm"
       footer={
@@ -109,7 +114,7 @@ export function ConfirmModal({
           <Button variant="ghost" onClick={onClose} disabled={loading}>
             Batal
           </Button>
-          <Button variant="danger" onClick={onConfirm} loading={loading}>
+          <Button variant="danger" onClick={handleConfirm} loading={loading}>
             {confirmLabel}
           </Button>
         </>
