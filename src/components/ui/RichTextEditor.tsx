@@ -1,6 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
-import Image from '@tiptap/extension-image'
+import ImageResize from 'tiptap-extension-resize-image'
 import Link from '@tiptap/extension-link'
 import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
@@ -20,40 +20,7 @@ import { useMediaStore } from '../../stores/mediaStore'
 import { useAuthStore } from '../../stores/authStore'
 import { processImageFile, ProcessedMedia } from '../../lib/mediaUtils'
 
-// Custom Image Extension to support more attributes
-const CustomImage = Image.extend({
-  addAttributes() {
-    return {
-      ...this.parent?.(),
-      alt: {
-        default: null,
-      },
-      title: {
-        default: null,
-      },
-      class: {
-        default: 'mx-auto rounded-xl max-w-full h-auto',
-      },
-      style: {
-        default: null,
-      },
-      width: {
-        default: null,
-      },
-      height: {
-        default: null,
-      },
-      'data-align': {
-        default: 'center',
-        parseHTML: element => element.getAttribute('data-align'),
-        renderHTML: attributes => {
-          if (!attributes['data-align']) return {}
-          return { 'data-align': attributes['data-align'] }
-        },
-      }
-    }
-  },
-})
+
 
 interface RichTextEditorProps {
   value: string
@@ -64,16 +31,6 @@ interface RichTextEditorProps {
 
 export default function RichTextEditor({ value, onChange, error, placeholder }: RichTextEditorProps) {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
-  
-  // Image Edit State
-  const [editingImage, setEditingImage] = useState<any>(null)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [altText, setAltText] = useState('')
-  const [captionText, setCaptionText] = useState('')
-  const [alignment, setAlignment] = useState<'left' | 'center' | 'right'>('center')
-  const [imgWidth, setImgWidth] = useState('')
-  const [imgHeight, setImgHeight] = useState('')
-
   const [isUploading, setIsUploading] = useState(false)
   
   // Media Context
@@ -154,9 +111,6 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
             editor.chain().focus().setImage({
               src: dbData.url,
               alt: dbData.alt_text || dbData.file_name,
-            }).updateAttributes('image', {
-              'data-align': 'center',
-              class: 'mx-auto rounded-xl max-w-full h-auto',
             }).run()
           }
         }
@@ -183,7 +137,7 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
       TextAlign.configure({
         types: ['heading', 'paragraph', 'image'],
       }),
-      CustomImage,
+      ImageResize,
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -192,28 +146,6 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose-base focus:outline-none min-h-[300px] max-w-none p-4 w-full prose-img:cursor-pointer',
-      },
-      handleClick: (view, pos, event) => {
-        const { doc } = view.state
-        const node = doc.nodeAt(pos)
-        if (node && node.type.name === 'image') {
-          const src = node.attrs.src
-          const alt = node.attrs.alt || ''
-          const title = node.attrs.title || ''
-          const align = node.attrs['data-align'] || 'center'
-          const w = node.attrs.width || ''
-          const h = node.attrs.height || ''
-          
-          setEditingImage({ pos, src })
-          setAltText(alt)
-          setCaptionText(title)
-          setAlignment(align as 'left'|'center'|'right')
-          setImgWidth(w)
-          setImgHeight(h)
-          setIsEditModalOpen(true)
-          return true
-        }
-        return false
       },
       handlePaste: (view, event, slice) => {
         const items = event.clipboardData?.items
@@ -256,75 +188,14 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
     if (!editor || mediaItems.length === 0) return
 
     mediaItems.forEach(item => {
-      let alignClass = 'mx-auto block'
-      
       editor.chain().focus().setImage({
         src: item.url,
         alt: item.altText || item.fileName,
-      }).updateAttributes('image', {
-        'data-align': 'center',
-        class: 'mx-auto rounded-xl max-w-full h-auto', // Tailwind classes for center
       }).run()
-      
-      // Optionally insert a caption paragraph if needed, but TipTap title attribute on img works for simple caption
     })
   }, [editor])
 
-  const handleSaveImageEdit = () => {
-    if (!editor || !editingImage) return
-    
-    let alignClass = ''
-    if (alignment === 'left') alignClass = 'mr-auto rounded-xl max-w-full h-auto'
-    if (alignment === 'center') alignClass = 'mx-auto block rounded-xl max-w-full h-auto'
-    if (alignment === 'right') alignClass = 'ml-auto rounded-xl max-w-full h-auto'
 
-    editor.chain().focus()
-      .setNodeSelection(editingImage.pos)
-      .updateAttributes('image', { 
-        alt: altText,
-        title: captionText, // caption mapped to title
-        'data-align': alignment,
-        class: alignClass,
-        width: imgWidth || null,
-        height: imgHeight || null,
-      })
-      .run()
-      
-    setIsEditModalOpen(false)
-    setEditingImage(null)
-  }
-
-  const handleRemoveImage = () => {
-    if (!editor || !editingImage) return
-    editor.chain().focus().setNodeSelection(editingImage.pos).deleteSelection().run()
-    setIsEditModalOpen(false)
-    setEditingImage(null)
-  }
-
-  const openImageEditModal = () => {
-    if (!editor) return
-    const { view, state } = editor
-    const { selection } = state
-    
-    // Check if an image is selected
-    if (selection.node && selection.node.type.name === 'image') {
-      const node = selection.node
-      const src = node.attrs.src
-      const alt = node.attrs.alt || ''
-      const title = node.attrs.title || ''
-      const align = node.attrs['data-align'] || 'center'
-      const w = node.attrs.width || ''
-      const h = node.attrs.height || ''
-      
-      setEditingImage({ pos: selection.from, src })
-      setAltText(alt)
-      setCaptionText(title)
-      setAlignment(align as 'left'|'center'|'right')
-      setImgWidth(w)
-      setImgHeight(h)
-      setIsEditModalOpen(true)
-    }
-  }
 
   const setLink = useCallback(() => {
     if (!editor) return
@@ -422,84 +293,6 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
           moduleName="Artikel"
         />
       )}
-
-      {/* Image Edit Modal */}
-      <Modal 
-        open={isEditModalOpen} 
-        onClose={() => setIsEditModalOpen(false)} 
-        title="Edit Gambar" 
-        size="sm"
-        footer={
-          <div className="flex justify-between w-full">
-            <Button variant="outline" onClick={handleRemoveImage} className="text-red-600 border-red-200 hover:bg-red-50">
-              <Trash2 size={16} className="mr-1" /> Hapus
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>Batal</Button>
-              <Button onClick={handleSaveImageEdit}>Simpan</Button>
-            </div>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div className="flex justify-center bg-gray-100 rounded-xl p-2 mb-4 h-32">
-            {editingImage && <img src={editingImage.src} alt="Preview" className="h-full object-contain" />}
-          </div>
-          
-          <Input 
-            label="Alt Text" 
-            value={altText} 
-            onChange={(e) => setAltText(e.target.value)} 
-            placeholder="Deskripsi gambar untuk aksesibilitas..." 
-          />
-          
-          <Input 
-            label="Caption / Keterangan" 
-            value={captionText} 
-            onChange={(e) => setCaptionText(e.target.value)} 
-            placeholder="Keterangan yang muncul di bawah gambar..." 
-          />
-          
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-2">Perataan Gambar (Posisi)</label>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setAlignment('left')}
-                className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-2 text-sm font-medium transition-colors ${alignment === 'left' ? 'bg-[#2D6A4F] text-white border-[#2D6A4F]' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-              >
-                <AlignLeft size={16} /> Kiri
-              </button>
-              <button 
-                onClick={() => setAlignment('center')}
-                className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-2 text-sm font-medium transition-colors ${alignment === 'center' ? 'bg-[#2D6A4F] text-white border-[#2D6A4F]' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-              >
-                <AlignCenter size={16} /> Tengah
-              </button>
-              <button 
-                onClick={() => setAlignment('right')}
-                className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-2 text-sm font-medium transition-colors ${alignment === 'right' ? 'bg-[#2D6A4F] text-white border-[#2D6A4F]' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
-              >
-                <AlignRight size={16} /> Kanan
-              </button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <Input 
-              label="Lebar (px / %)" 
-              value={imgWidth} 
-              onChange={(e) => setImgWidth(e.target.value)} 
-              placeholder="mis. 300px atau 50%" 
-            />
-            <Input 
-              label="Tinggi (px / %)" 
-              value={imgHeight} 
-              onChange={(e) => setImgHeight(e.target.value)} 
-              placeholder="mis. auto atau 200px" 
-            />
-          </div>
-        </div>
-      </Modal>
     </div>
   )
 }
