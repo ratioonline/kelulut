@@ -1,4 +1,4 @@
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
@@ -193,6 +193,28 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
       attributes: {
         class: 'prose prose-sm sm:prose-base focus:outline-none min-h-[300px] max-w-none p-4 w-full prose-img:cursor-pointer',
       },
+      handleClick: (view, pos, event) => {
+        const { doc } = view.state
+        const node = doc.nodeAt(pos)
+        if (node && node.type.name === 'image') {
+          const src = node.attrs.src
+          const alt = node.attrs.alt || ''
+          const title = node.attrs.title || ''
+          const align = node.attrs['data-align'] || 'center'
+          const w = node.attrs.width || ''
+          const h = node.attrs.height || ''
+          
+          setEditingImage({ pos, src })
+          setAltText(alt)
+          setCaptionText(title)
+          setAlignment(align as 'left'|'center'|'right')
+          setImgWidth(w)
+          setImgHeight(h)
+          setIsEditModalOpen(true)
+          return true
+        }
+        return false
+      },
       handlePaste: (view, event, slice) => {
         const items = event.clipboardData?.items
         if (!items) return false
@@ -383,35 +405,6 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
 
         {/* Editor Content */}
         <div className="flex-1 overflow-y-auto max-h-[600px] min-h-[300px]">
-          {editor && (
-            <BubbleMenu 
-              editor={editor} 
-              shouldShow={({ editor }) => editor.isActive('image')}
-              tippyOptions={{ duration: 100 }}
-            >
-              <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-1 flex items-center gap-1">
-                <ToolButton 
-                  onClick={() => editor.chain().focus().updateAttributes('image', { 'data-align': 'left', class: 'mr-auto rounded-xl max-w-full h-auto' }).run()} 
-                  isActive={editor.getAttributes('image')['data-align'] === 'left'} 
-                  icon={AlignLeft} title="Kiri" 
-                />
-                <ToolButton 
-                  onClick={() => editor.chain().focus().updateAttributes('image', { 'data-align': 'center', class: 'mx-auto block rounded-xl max-w-full h-auto' }).run()} 
-                  isActive={editor.getAttributes('image')['data-align'] === 'center'} 
-                  icon={AlignCenter} title="Tengah" 
-                />
-                <ToolButton 
-                  onClick={() => editor.chain().focus().updateAttributes('image', { 'data-align': 'right', class: 'ml-auto rounded-xl max-w-full h-auto' }).run()} 
-                  isActive={editor.getAttributes('image')['data-align'] === 'right'} 
-                  icon={AlignRight} title="Kanan" 
-                />
-                <div className="w-px h-5 bg-gray-300 mx-1"></div>
-                <Button size="sm" variant="ghost" onClick={openImageEditModal} className="h-8 px-2 text-xs">
-                  <Edit2 size={14} className="mr-1" /> Ukuran & Detail
-                </Button>
-              </div>
-            </BubbleMenu>
-          )}
           <EditorContent editor={editor} />
         </div>
       </div>
