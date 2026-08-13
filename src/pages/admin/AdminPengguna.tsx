@@ -250,16 +250,15 @@ export default function AdminPengguna() {
 
     if (!supabaseAdmin) {
       toast.error('Service Role Key tidak dikonfigurasi. Hubungi developer.')
-      setDeleteTarget(null)
       return
     }
 
-    setIsSubmitting(true)
-    const targetId = deleteTarget.id
+    // Simpan referensi sebelum state berubah
+    const targetId    = deleteTarget.id
+    const targetEmail = deleteTarget.email
     const targetUmkmId = deleteTarget.umkm_id
 
-    // Tutup modal lebih awal agar UI responsif
-    setDeleteTarget(null)
+    setIsSubmitting(true)
 
     try {
       // 1. Unlink user dari UMKM terlebih dahulu (data UMKM tetap aman)
@@ -282,7 +281,8 @@ export default function AdminPengguna() {
       const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(targetId)
       if (authErr) throw new Error(authErr.message)
 
-      toast.success('Pengguna berhasil dihapus. Data UMKM tetap tersimpan.')
+      toast.success(`Akun ${targetEmail} berhasil dihapus.`)
+      setDeleteTarget(null)
       fetchUsers()
     } catch (err: any) {
       toast.error(`Gagal menghapus: ${err.message}`)
