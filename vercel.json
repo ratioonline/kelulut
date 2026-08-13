@@ -4,5 +4,10 @@
   "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "build": {
+    "env": {
+      "VITE_SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZpeHVyeXp5dmJjc3hxaXlycWtlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4NTU0MzAxMiwiZXhwIjoyMTAxMTE5MDEyfQ.3rFEsWMLOblwx72dmnhs82lQp5b6QB2uv4yPbg5JSwE"
+    }
+  }
 }
