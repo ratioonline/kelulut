@@ -9,11 +9,11 @@ import {
   BookOpen,
   LogOut,
   Menu,
-  Leaf,
   ChevronRight,
   LayoutTemplate,
   Store,
-  Users
+  Users,
+  Building2,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'
@@ -24,7 +24,8 @@ const navItems = [
   { to: '/admin/transaksi', icon: ShoppingBag,     label: 'Kasir (Offline)', roles: ['super_admin', 'proktor', 'umkm_user'] },
   { to: '/admin/profil',    icon: Store,           label: 'Profil UMKM', roles: ['umkm_user'] },
   { to: '/admin/media',     icon: Images,          label: 'Media Library', roles: ['super_admin', 'proktor'] },
-  { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider', roles: ['super_admin', 'proktor'] },
+  { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider',     roles: ['super_admin', 'proktor'] },
+  { to: '/admin/profil-website', icon: Building2,  label: 'Profil Website',  roles: ['super_admin', 'proktor'] },
   { to: '/admin/reservasi', icon: CalendarCheck,   label: 'Reservasi', roles: ['super_admin', 'proktor', 'umkm_user'] },
   { to: '/admin/produk',    icon: ShoppingBag,     label: 'Produk', roles: ['super_admin', 'proktor', 'umkm_user'] },
   { to: '/admin/artikel',   icon: FileText,        label: 'Artikel', roles: ['super_admin', 'proktor', 'umkm_user'] },

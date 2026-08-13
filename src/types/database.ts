@@ -561,6 +561,71 @@ export interface Database {
           details?: Json | null
           created_at?: string
         }
+      },
+      organization_profile: {
+        Row: {
+          id: string
+          name: string | null
+          tagline: string | null
+          about: string | null
+          vision: string | null
+          mission: string | null
+          address: string | null
+          phone: string | null
+          email: string | null
+          whatsapp: string | null
+          maps_url: string | null
+          instagram: string | null
+          facebook: string | null
+          youtube: string | null
+          tiktok: string | null
+          logo_url: string | null
+          cover_url: string | null
+          year_founded: number | null
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name?: string | null
+          tagline?: string | null
+          about?: string | null
+          vision?: string | null
+          mission?: string | null
+          address?: string | null
+          phone?: string | null
+          email?: string | null
+          whatsapp?: string | null
+          maps_url?: string | null
+          instagram?: string | null
+          facebook?: string | null
+          youtube?: string | null
+          tiktok?: string | null
+          logo_url?: string | null
+          cover_url?: string | null
+          year_founded?: number | null
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string | null
+          tagline?: string | null
+          about?: string | null
+          vision?: string | null
+          mission?: string | null
+          address?: string | null
+          phone?: string | null
+          email?: string | null
+          whatsapp?: string | null
+          maps_url?: string | null
+          instagram?: string | null
+          facebook?: string | null
+          youtube?: string | null
+          tiktok?: string | null
+          logo_url?: string | null
+          cover_url?: string | null
+          year_founded?: number | null
+          updated_at?: string
+        }
       }
     }
   }
@@ -594,6 +659,8 @@ export type ReviewReply       = Database['public']['Tables']['review_replies']['
 export type ReviewReplyInsert = Database['public']['Tables']['review_replies']['Insert']
 export type AuditLog          = Database['public']['Tables']['audit_logs']['Row']
 export type AuditLogInsert    = Database['public']['Tables']['audit_logs']['Insert']
+export type OrganizationProfile       = Database['public']['Tables']['organization_profile']['Row']
+export type OrganizationProfileInsert = Database['public']['Tables']['organization_profile']['Insert']
 
 // Cart types (client-side only, no DB)
 export interface CartItem {
