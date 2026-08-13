@@ -32,6 +32,8 @@ import AdminMedia from './pages/admin/AdminMedia'
 import AdminUmkmManagement from './pages/admin/AdminUmkmManagement'
 import AdminUmkmDetail from './pages/admin/AdminUmkmDetail'
 import AdminProfile from './pages/admin/AdminProfile'
+import AdminTransaksi from './pages/admin/AdminTransaksi'
+import AdminPengguna from './pages/admin/AdminPengguna'
 
 // UMKM pages are now handled within the Admin routes
 
@@ -87,6 +89,8 @@ function AppRoutes() {
           <Route path="program"   element={<AdminProgram />} />
           <Route path="umkm-management" element={<AdminUmkmManagement />} />
           <Route path="umkm-management/:id" element={<AdminUmkmDetail />} />
+          <Route path="transaksi" element={<AdminTransaksi />} />
+          <Route path="pengguna"  element={<AdminPengguna />} />
         </Route>
       </Route>
 

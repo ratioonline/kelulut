@@ -13,22 +13,25 @@ import {
   ChevronRight,
   LayoutTemplate,
   Store,
+  Users
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'
 import toast from 'react-hot-toast'
 
 const navItems = [
-  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['super_admin', 'umkm_user'] },
+  { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['super_admin', 'proktor', 'umkm_user'] },
+  { to: '/admin/transaksi', icon: ShoppingBag,     label: 'Kasir (Offline)', roles: ['super_admin', 'proktor', 'umkm_user'] },
   { to: '/admin/profil',    icon: Store,           label: 'Profil UMKM', roles: ['umkm_user'] },
-  { to: '/admin/media',     icon: Images,          label: 'Media Library', roles: ['super_admin', 'umkm_user'] },
-  { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider', roles: ['super_admin'] },
-  { to: '/admin/reservasi', icon: CalendarCheck,   label: 'Reservasi', roles: ['super_admin', 'umkm_user'] },
-  { to: '/admin/produk',    icon: ShoppingBag,     label: 'Produk', roles: ['super_admin', 'umkm_user'] },
-  { to: '/admin/artikel',   icon: FileText,        label: 'Artikel', roles: ['super_admin', 'umkm_user'] },
-  { to: '/admin/galeri',    icon: Images,          label: 'Galeri', roles: ['super_admin', 'umkm_user'] },
-  { to: '/admin/program',   icon: BookOpen,        label: 'Program', roles: ['super_admin'] },
-  { to: '/admin/umkm-management', icon: Store,     label: 'UMKM', roles: ['super_admin'] },
+  { to: '/admin/media',     icon: Images,          label: 'Media Library', roles: ['super_admin', 'proktor'] },
+  { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider', roles: ['super_admin', 'proktor'] },
+  { to: '/admin/reservasi', icon: CalendarCheck,   label: 'Reservasi', roles: ['super_admin', 'proktor', 'umkm_user'] },
+  { to: '/admin/produk',    icon: ShoppingBag,     label: 'Produk', roles: ['super_admin', 'proktor', 'umkm_user'] },
+  { to: '/admin/artikel',   icon: FileText,        label: 'Artikel', roles: ['super_admin', 'proktor', 'umkm_user'] },
+  { to: '/admin/galeri',    icon: Images,          label: 'Galeri', roles: ['super_admin', 'proktor', 'umkm_user'] },
+  { to: '/admin/program',   icon: BookOpen,        label: 'Program', roles: ['super_admin', 'proktor'] },
+  { to: '/admin/umkm-management', icon: Store,     label: 'UMKM', roles: ['super_admin', 'proktor'] },
+  { to: '/admin/pengguna',  icon: Users,           label: 'Pengguna', roles: ['super_admin', 'proktor'] },
 ]
 
 export default function AdminLayout() {
