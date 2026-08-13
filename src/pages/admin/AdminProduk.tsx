@@ -242,7 +242,7 @@ export default function AdminProduk() {
         <CardBody className="p-0">
           {loading ? (
             <div className="flex justify-center py-16"><LoadingSpinner size="lg" /></div>
-          ) : filtered.length === 0 ? (
+          ) : products.length === 0 ? (
             <p className="text-center text-gray-400 py-16">Belum ada produk.</p>
           ) : (
             <div className="overflow-x-auto">
