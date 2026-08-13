@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Pencil, Trash2, Eye, EyeOff, Store, ShieldCheck } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { supabase } from '../../lib/supabase'
@@ -15,6 +15,7 @@ import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
 import MediaPickerButton from '../../components/media/MediaPickerButton'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import RichTextEditor from '../../components/ui/RichTextEditor'
 import toast from 'react-hot-toast'
 
 const schema = z.object({
@@ -57,6 +58,7 @@ export default function AdminArtikel() {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { published: false } })
 
@@ -195,7 +197,7 @@ export default function AdminArtikel() {
         </CardBody>
       </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Artikel' : 'Tulis Artikel Baru'} size="lg"
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Artikel' : 'Tulis Artikel Baru'} size="xl"
         footer={
           <>
             <Button variant="ghost" onClick={() => setModalOpen(false)}>Batal</Button>
@@ -206,7 +208,24 @@ export default function AdminArtikel() {
         <form id="article-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <Input label="Judul Artikel" required error={errors.title?.message} {...register('title')} />
           <Textarea label="Ringkasan (Excerpt)" rows={2} placeholder="Ringkasan singkat artikel..." {...register('excerpt')} />
-          <Textarea label="Konten" rows={10} required error={errors.content?.message} placeholder="Tulis konten artikel di sini..." {...register('content')} />
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Konten <span className="text-red-500">*</span>
+            </label>
+            <Controller
+              name="content"
+              control={control}
+              render={({ field }) => (
+                <RichTextEditor
+                  value={field.value || ''}
+                  onChange={field.onChange}
+                  error={errors.content?.message}
+                />
+              )}
+            />
+          </div>
+
           <MediaPickerButton
             label="Thumbnail Artikel"
             value={imageBase64 ?? undefined}
@@ -226,3 +245,4 @@ export default function AdminArtikel() {
     </div>
   )
 }
+

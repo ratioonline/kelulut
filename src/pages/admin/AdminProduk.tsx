@@ -38,9 +38,14 @@ type FormData = z.infer<typeof schema>
 
 export default function AdminProduk() {
   const [products, setProducts] = useState<(Product & { umkm?: Umkm | null })[]>([])
-  const [filtered, setFiltered] = useState<(Product & { umkm?: Umkm | null })[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(0)
+  const ITEMS_PER_PAGE = 20
+
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<(Product & { umkm?: Umkm | null }) | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null)
@@ -54,33 +59,64 @@ export default function AdminProduk() {
   const [coverImage, setCoverImage] = useState<string | null>(null)
   const [extraImages, setExtraImages] = useState<(string | null)[]>([null, null, null, null])
 
-  const fetchData = async () => {
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const fetchData = async (isReset = false) => {
+    if (isReset) {
+      setLoading(true)
+      setPage(0)
+    } else {
+      setLoadingMore(true)
+    }
+
+    const currentPage = isReset ? 0 : page
+
     let query = supabase
       .from('products')
-      .select('*, umkm:umkms(*)')
+      .select('*, umkm:umkms(*)', { count: 'exact' })
       .order('created_at', { ascending: false })
     
     if (role === 'umkm_user') {
       if (myUmkm) query = query.eq('umkm_id', myUmkm.id)
-      else query = query.eq('umkm_id', '00000000-0000-0000-0000-000000000000') // Force empty if no UMKM
+      else query = query.eq('umkm_id', '00000000-0000-0000-0000-000000000000')
     }
 
-    const { data } = await query
-    if (data) {
-      setProducts(data as (Product & { umkm?: Umkm | null })[])
+    if (debouncedSearch) {
+      query = query.ilike('name', `%${debouncedSearch}%`)
     }
-    const { data: umkms } = await supabase.from('umkms').select('*').order('name')
-    if (umkms) setUmkmList(umkms as Umkm[])
+
+    const start = currentPage * ITEMS_PER_PAGE
+    const end = start + ITEMS_PER_PAGE - 1
+    query = query.range(start, end)
+
+    const { data, count, error } = await query
+    
+    if (!error && data) {
+      setProducts(prev => isReset ? (data as (Product & { umkm?: Umkm | null })[]) : [...prev, ...(data as (Product & { umkm?: Umkm | null })[])])
+      setHasMore(count ? (start + data.length) < count : false)
+      setPage(currentPage + 1)
+    }
+
+    // Only fetch UMKM list once
+    if (umkmList.length === 0) {
+      const { data: umkms } = await supabase.from('umkms').select('*').order('name')
+      if (umkms) setUmkmList(umkms as Umkm[])
+    }
+
     setLoading(false)
+    setLoadingMore(false)
   }
 
-  useEffect(() => { fetchData() }, [])
-
-  useEffect(() => {
-    if (!search) { setFiltered(products); return }
-    const q = search.toLowerCase()
-    setFiltered(products.filter((p) => p.name.toLowerCase().includes(q)))
-  }, [search, products])
+  useEffect(() => { 
+    fetchData(true) 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, role, myUmkm])
 
   const {
     register, handleSubmit, reset,
@@ -158,7 +194,7 @@ export default function AdminProduk() {
       toast.success('Produk berhasil ditambahkan')
     }
     setModalOpen(false)
-    await fetchData()
+    await fetchData(true)
   }
 
   const handleDelete = async () => {
@@ -166,7 +202,7 @@ export default function AdminProduk() {
     setDeleting(true)
     const { error } = await supabase.from('products').delete().eq('id', deleteTarget.id)
     if (error) { toast.error('Gagal menghapus produk') }
-    else { toast.success('Produk berhasil dihapus'); await fetchData() }
+    else { toast.success('Produk berhasil dihapus'); await fetchData(true) }
     setDeleting(false)
     setDeleteTarget(null)
   }
@@ -179,7 +215,7 @@ export default function AdminProduk() {
     if (!stockTarget) return
     const { error } = await supabase.from('products').update({ stock: quickStock }).eq('id', stockTarget.id)
     if (error) { toast.error('Gagal update stok') }
-    else { toast.success('Stok diperbarui'); await fetchData() }
+    else { toast.success('Stok diperbarui'); await fetchData(true) }
     setStockTarget(null)
   }
 
@@ -219,7 +255,7 @@ export default function AdminProduk() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {filtered.map((p) => (
+                  {products.map((p) => (
                     <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
@@ -281,6 +317,18 @@ export default function AdminProduk() {
                   ))}
                 </tbody>
               </table>
+              {hasMore && (
+                <div className="flex justify-center p-4 border-t border-gray-100">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => fetchData(false)}
+                    loading={loadingMore}
+                  >
+                    Muat Lebih Banyak
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardBody>

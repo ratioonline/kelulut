@@ -10,10 +10,13 @@ import type { Article } from '../../types/database'
 import { formatDate, truncate } from '../../lib/utils'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import toast from 'react-hot-toast'
+import DOMPurify from 'dompurify'
 
 // ── Helpers ───────────────────────────────────────────────────
 function readingTime(text: string) {
-  return Math.max(1, Math.round(text.trim().split(/\s+/).length / 200))
+  // Simple check for HTML tags to strip them before counting
+  const plainText = text.replace(/<[^>]*>?/gm, '')
+  return Math.max(1, Math.round(plainText.trim().split(/\s+/).length / 200))
 }
 
 const FALLBACKS = [
@@ -22,10 +25,26 @@ const FALLBACKS = [
   'https://images.unsplash.com/photo-1471943311424-646960669fbc?w=1200&q=80',
 ]
 
-// ── Markdown-like renderer ─────────────────────────────────────
-// Converts the plain-text content (with ## headings, - lists, **bold**)
-// into readable JSX without needing a markdown library.
-function renderContent(raw: string): React.ReactNode[] {
+// ── Content Renderer ──────────────────────────────────────────
+// Renders HTML from RichTextEditor, or falls back to old markdown-like syntax
+function renderContent(raw: string): React.ReactNode {
+  // Heuristic to check if content is HTML from TipTap
+  const isHtml = /<[a-z][\s\S]*>/i.test(raw)
+
+  if (isHtml) {
+    const cleanHtml = DOMPurify.sanitize(raw, {
+      ADD_ATTR: ['target', 'data-align'], // Keep target blank and data-align for images
+    })
+    
+    return (
+      <div 
+        className="prose prose-sm md:prose-base lg:prose-lg max-w-none prose-img:rounded-xl prose-img:mx-auto prose-a:text-[#2D6A4F] prose-headings:text-[#1B4332] prose-p:text-gray-700 prose-p:leading-[1.85]"
+        dangerouslySetInnerHTML={{ __html: cleanHtml }} 
+      />
+    )
+  }
+
+  // Backward compatibility for old markdown-like syntax
   const lines = raw.split('\n')
   const nodes: React.ReactNode[] = []
   let listBuf: string[] = []
@@ -76,24 +95,22 @@ function renderContent(raw: string): React.ReactNode[] {
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
       listBuf.push(trimmed.slice(2))
     } else if (/^\d+\.\s/.test(trimmed)) {
-      // numbered list item — treat same as bullet
       listBuf.push(trimmed.replace(/^\d+\.\s/, ''))
     } else if (trimmed === '') {
       flushList()
-      // empty line = paragraph break (handled by paragraph spacing)
     } else {
       flushList()
       nodes.push(
         <p
           key={key++}
           className="text-gray-700 leading-[1.85] mb-0"
-          dangerouslySetInnerHTML={{ __html: inlineFormat(trimmed) }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(inlineFormat(trimmed)) }}
         />
       )
     }
   }
   flushList()
-  return nodes
+  return <div className="space-y-5 text-[17px]">{nodes}</div>
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -248,9 +265,7 @@ export default function ArtikelDetail() {
                 )}
 
                 {/* Body content */}
-                <div className="space-y-5 text-[17px]">
-                  {renderContent(article.content)}
-                </div>
+                {renderContent(article.content)}
 
                 {/* Bottom share */}
                 <div className="mt-12 pt-8 border-t border-gray-100 flex items-center justify-between flex-wrap gap-4">

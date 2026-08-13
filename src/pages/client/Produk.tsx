@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { Helmet } from 'react-helmet-async'
 import {
   Search,
@@ -27,98 +27,131 @@ const ITEMS_PER_PAGE = 8
 
 export default function ProdukPage() {
   const [products, setProducts] = useState<Product[]>([])
+  const [topProducts, setTopProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<string[]>(['Semua'])
+  
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(0)
+
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  
   const [category, setCategory] = useState('Semua')
   const [sort, setSort] = useState('terbaru')
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
 
   const carouselRef = useRef<HTMLDivElement>(null)
 
+  // Fetch unique categories (only fetch category column)
+  useEffect(() => {
+    supabase
+      .from('products')
+      .select('category')
+      .eq('is_available', true)
+      .then(({ data }) => {
+        if (data) {
+          const uniqueCats = Array.from(new Set(data.map(d => d.category).filter(Boolean))) as string[]
+          setCategories(['Semua', ...uniqueCats])
+        }
+      })
+  }, [])
+
+  // Fetch Top Products
   useEffect(() => {
     supabase
       .from('products')
       .select('id, name, slug, price, discount_price, stock, sold_count, rating, rating_count, images, image_url, category, is_available, created_at')
       .eq('is_available', true)
-      .then(({ data, error }) => {
-        if (error) console.error('Error fetching products:', error)
-        if (data) setProducts(data as Product[])
-        setLoading(false)
+      .order('sold_count', { ascending: false })
+      .limit(5)
+      .then(({ data }) => {
+        if (data) setTopProducts(data as Product[])
       })
   }, [])
 
-  // Top best sellers for the carousel
-  const topProducts = useMemo(() => {
-    return [...products]
-      .sort((a, b) => (b.sold_count ?? 0) - (a.sold_count ?? 0))
-      .slice(0, 5)
-  }, [products])
+  // Debounce Search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [search])
 
-  const categories = useMemo(
-    () => ['Semua', ...Array.from(new Set(products.map((p) => p.category ?? 'Lainnya')))],
-    [products]
-  )
-
-  const filtered = useMemo(() => {
-    let r = [...products]
-
-    if (category !== 'Semua') r = r.filter((p) => (p.category ?? 'Lainnya') === category)
-
-    if (search) {
-      const q = search.toLowerCase()
-      r = r.filter((p) => p.name.toLowerCase().includes(q))
+  const fetchProducts = useCallback(async (isReset = false) => {
+    if (isReset) {
+      setLoading(true)
+      setPage(0)
+    } else {
+      setLoadingMore(true)
     }
 
-    const min = priceMin ? parseInt(priceMin) : null
-    const max = priceMax ? parseInt(priceMax) : null
-    if (min !== null) r = r.filter((p) => (p.discount_price ?? p.price ?? 0) >= min)
-    if (max !== null) r = r.filter((p) => (p.discount_price ?? p.price ?? 0) <= max)
+    const currentPage = isReset ? 0 : page
 
+    let query = supabase
+      .from('products')
+      .select('id, name, slug, price, discount_price, stock, sold_count, rating, rating_count, images, image_url, category, is_available, created_at', { count: 'exact' })
+      .eq('is_available', true)
+
+    if (category !== 'Semua') query = query.eq('category', category)
+    if (debouncedSearch) query = query.ilike('name', `%${debouncedSearch}%`)
+    if (priceMin) query = query.gte('price', parseInt(priceMin))
+    if (priceMax) query = query.lte('price', parseInt(priceMax))
+
+    // Sorting
     switch (sort) {
       case 'terlaris':
-        r.sort((a, b) => (b.sold_count ?? 0) - (a.sold_count ?? 0))
+        query = query.order('sold_count', { ascending: false })
         break
       case 'harga-asc':
-        r.sort(
-          (a, b) =>
-            (a.discount_price ?? a.price ?? 0) - (b.discount_price ?? b.price ?? 0)
-        )
+        query = query.order('price', { ascending: true }) // Note: Supabase cannot easily sort by calculated (discount_price ?? price) without RPC, we sort by price as fallback
         break
       case 'harga-desc':
-        r.sort(
-          (a, b) =>
-            (b.discount_price ?? b.price ?? 0) - (a.discount_price ?? a.price ?? 0)
-        )
+        query = query.order('price', { ascending: false })
         break
       case 'rating':
-        r.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+        query = query.order('rating', { ascending: false })
         break
       default:
-        r.sort(
-          (a, b) =>
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )
+        query = query.order('created_at', { ascending: false })
     }
 
-    return r
-  }, [products, category, search, sort, priceMin, priceMax])
+    // Pagination
+    const start = currentPage * ITEMS_PER_PAGE
+    const end = start + ITEMS_PER_PAGE - 1
+    query = query.range(start, end)
+
+    const { data, count, error } = await query
+
+    if (error) {
+      console.error('Error fetching products:', error)
+    } else if (data) {
+      setProducts(prev => isReset ? (data as Product[]) : [...prev, ...(data as Product[])])
+      setHasMore(count ? (start + data.length) < count : false)
+      setPage(currentPage + 1)
+    }
+
+    setLoading(false)
+    setLoadingMore(false)
+  }, [category, debouncedSearch, priceMin, priceMax, sort, page])
+
+  // Refetch when filters change
+  useEffect(() => {
+    fetchProducts(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, debouncedSearch, priceMin, priceMax, sort])
 
   const clearFilters = () => {
     setCategory('Semua')
     setSearch('')
+    setDebouncedSearch('')
     setPriceMin('')
     setPriceMax('')
     setSort('terbaru')
-    setVisibleCount(ITEMS_PER_PAGE)
   }
-
-  // Reset visible count when filters change
-  useEffect(() => {
-    setVisibleCount(ITEMS_PER_PAGE)
-  }, [category, search, sort, priceMin, priceMax])
 
   const hasFilter = category !== 'Semua' || search || priceMin || priceMax
 
@@ -373,7 +406,7 @@ export default function ProdukPage() {
               {/* Result counter */}
               <div className="flex items-center justify-between text-xs text-gray-400">
                 <span>
-                  {loading ? 'Memuat produk...' : `${filtered.length} produk ditemukan`}
+                  {loading ? 'Memuat produk...' : `${products.length} produk ditampilkan`}
                 </span>
                 {hasFilter && (
                   <button
@@ -390,7 +423,7 @@ export default function ProdukPage() {
                 <div className="flex justify-center py-24">
                   <LoadingSpinner size="lg" />
                 </div>
-              ) : filtered.length === 0 ? (
+              ) : products.length === 0 ? (
                 <div className="text-center py-24 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                   <p className="text-5xl mb-3">🍯</p>
                   <p className="font-bold text-gray-700">Tidak ada produk yang sesuai</p>
@@ -405,17 +438,18 @@ export default function ProdukPage() {
               ) : (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                    {filtered.slice(0, visibleCount).map((p, idx) => (
-                      <ProductCard key={p.id} product={p} isTop={idx < 2 && category === 'Semua'} />
+                    {products.map((p, idx) => (
+                      <ProductCard key={p.id} product={p} isTop={idx < 2 && category === 'Semua' && sort === 'terbaru'} />
                     ))}
                   </div>
-                  {visibleCount < filtered.length && (
+                  {hasMore && (
                     <div className="flex justify-center pt-6">
                       <button
-                        onClick={() => setVisibleCount((c) => c + ITEMS_PER_PAGE)}
-                        className="px-8 py-2.5 bg-[#EE4D2D] hover:bg-[#d03d1e] text-white text-sm font-bold rounded-xl shadow transition-colors active:scale-95"
+                        onClick={() => fetchProducts(false)}
+                        disabled={loadingMore}
+                        className="px-8 py-2.5 bg-[#EE4D2D] hover:bg-[#d03d1e] text-white text-sm font-bold rounded-xl shadow transition-colors active:scale-95 disabled:opacity-50"
                       >
-                        Muat Lebih Banyak ({filtered.length - visibleCount} lagi)
+                        {loadingMore ? 'Memuat...' : 'Muat Lebih Banyak'}
                       </button>
                     </div>
                   )}

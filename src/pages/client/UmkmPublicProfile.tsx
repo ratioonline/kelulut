@@ -26,12 +26,13 @@ export default function UmkmPublicProfile() {
         const u = data as Umkm
         setUmkm(u)
 
-        const { data: prods } = await supabase
+        const { data: prods, count } = await supabase
           .from('products')
-          .select('*')
+          .select('*', { count: 'exact' })
           .eq('umkm_id', u.id)
           .eq('is_available', true)
           .order('created_at', { ascending: false })
+          .limit(24)
         setProducts((prods ?? []) as Product[])
         setLoading(false)
       })
@@ -155,11 +156,21 @@ export default function UmkmPublicProfile() {
                 <p className="text-gray-500">Belum ada produk dari UMKM ini.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                {products.map(p => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {products.map(p => (
+                    <ProductCard key={p.id} product={p} />
+                  ))}
+                </div>
+                {products.length === 24 && (
+                  <div className="text-center mt-6">
+                    <p className="text-sm text-gray-500 mb-2">Menampilkan 24 produk terbaru.</p>
+                    <Link to={`/produk?search=${encodeURIComponent(umkm.name)}`} className="text-[#2D6A4F] font-semibold hover:underline">
+                      Lihat Semua Produk
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -24,6 +24,10 @@ type FormData = z.infer<typeof schema>
 export default function AdminGaleri() {
   const [items, setItems] = useState<(GalleryItem & { umkm?: { name: string } | null })[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(0)
+  const ITEMS_PER_PAGE = 20
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GalleryItem | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -31,10 +35,19 @@ export default function AdminGaleri() {
   const [imageError, setImageError] = useState('')
   const { role, myUmkm } = useAuthStore()
 
-  const fetchData = async () => {
+  const fetchData = async (isReset = false) => {
+    if (isReset) {
+      setLoading(true)
+      setPage(0)
+    } else {
+      setLoadingMore(true)
+    }
+
+    const currentPage = isReset ? 0 : page
+
     let query = supabase
       .from('gallery')
-      .select('*, umkm:umkms(name)')
+      .select('*, umkm:umkms(name)', { count: 'exact' })
       .order('created_at', { ascending: false })
       
     if (role === 'umkm_user') {
@@ -42,12 +55,23 @@ export default function AdminGaleri() {
       else query = query.eq('umkm_id', '00000000-0000-0000-0000-000000000000')
     }
 
-    const { data } = await query
-    if (data) setItems(data)
+    const start = currentPage * ITEMS_PER_PAGE
+    const end = start + ITEMS_PER_PAGE - 1
+    query = query.range(start, end)
+
+    const { data, count, error } = await query
+    
+    if (!error && data) {
+      setItems(prev => isReset ? (data as (GalleryItem & { umkm?: { name: string } | null })[]) : [...prev, ...(data as (GalleryItem & { umkm?: { name: string } | null })[])])
+      setHasMore(count ? (start + data.length) < count : false)
+      setPage(currentPage + 1)
+    }
+
     setLoading(false)
+    setLoadingMore(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(true) }, [role, myUmkm])
 
   const {
     register,
@@ -80,7 +104,7 @@ export default function AdminGaleri() {
     if (error) { toast.error('Gagal menambah foto'); return }
     toast.success('Foto berhasil ditambahkan')
     setModalOpen(false)
-    await fetchData()
+    await fetchData(true)
   }
 
   const handleDelete = async () => {
@@ -88,7 +112,7 @@ export default function AdminGaleri() {
     setDeleting(true)
     const { error } = await supabase.from('gallery').delete().eq('id', deleteTarget.id)
     if (error) { toast.error('Gagal menghapus foto') }
-    else { toast.success('Foto berhasil dihapus'); await fetchData() }
+    else { toast.success('Foto berhasil dihapus'); await fetchData(true) }
     setDeleting(false)
     setDeleteTarget(null)
   }
@@ -143,6 +167,19 @@ export default function AdminGaleri() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {hasMore && !loading && items.length > 0 && (
+        <div className="flex justify-center mt-6">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fetchData(false)}
+            loading={loadingMore}
+          >
+            Muat Lebih Banyak
+          </Button>
         </div>
       )}
 

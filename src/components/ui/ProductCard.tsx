@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { ShoppingCart, Star } from 'lucide-react'
 import { cn, formatCurrency } from '../../lib/utils'
@@ -13,7 +14,7 @@ interface ProductCardProps {
   className?: string
 }
 
-export default function ProductCard({
+function ProductCard({
   product,
   isTop = false,
   salesRibbon,
@@ -164,3 +165,5 @@ export default function ProductCard({
     </div>
   )
 }
+
+export default memo(ProductCard)

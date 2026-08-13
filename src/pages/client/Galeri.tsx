@@ -1,43 +1,75 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { X, Filter } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { GalleryItem } from '../../types/database'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
-const ITEMS_PER_PAGE = 8
+const ITEMS_PER_PAGE = 12
 
 export default function GaleriPage() {
   const [items, setItems] = useState<GalleryItem[]>([])
+  const [categories, setCategories] = useState<string[]>(['Semua'])
+  
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  const [page, setPage] = useState(0)
+
   const [category, setCategory] = useState('Semua')
   const [lightbox, setLightbox] = useState<GalleryItem | null>(null)
-  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
 
+  // Fetch categories
   useEffect(() => {
     supabase
       .from('gallery')
-      .select('id, title, description, image_url, category, created_at')
-      .order('created_at', { ascending: false })
+      .select('category')
       .then(({ data }) => {
-        if (data) setItems(data)
-        setLoading(false)
+        if (data) {
+          const uniqueCats = Array.from(new Set(data.map(d => d.category).filter(Boolean))) as string[]
+          setCategories(['Semua', ...uniqueCats])
+        }
       })
   }, [])
 
-  const categories = useMemo(
-    () => ['Semua', ...Array.from(new Set(items.map((i) => i.category ?? 'Umum')))],
-    [items]
-  )
+  const fetchGallery = useCallback(async (isReset = false) => {
+    if (isReset) {
+      setLoading(true)
+      setPage(0)
+    } else {
+      setLoadingMore(true)
+    }
 
-  const filtered = useMemo(() => {
-    if (category === 'Semua') return items
-    return items.filter((i) => (i.category ?? 'Umum') === category)
-  }, [category, items])
+    const currentPage = isReset ? 0 : page
 
-  // Reset visible count saat kategori berubah
+    let query = supabase
+      .from('gallery')
+      .select('id, title, description, image_url, category, created_at', { count: 'exact' })
+      .order('created_at', { ascending: false })
+
+    if (category !== 'Semua') query = query.eq('category', category)
+
+    const start = currentPage * ITEMS_PER_PAGE
+    const end = start + ITEMS_PER_PAGE - 1
+    query = query.range(start, end)
+
+    const { data, count, error } = await query
+
+    if (error) {
+      console.error('Error fetching gallery:', error)
+    } else if (data) {
+      setItems(prev => isReset ? (data as GalleryItem[]) : [...prev, ...(data as GalleryItem[])])
+      setHasMore(count ? (start + data.length) < count : false)
+      setPage(currentPage + 1)
+    }
+
+    setLoading(false)
+    setLoadingMore(false)
+  }, [category, page])
+
   useEffect(() => {
-    setVisibleCount(ITEMS_PER_PAGE)
+    fetchGallery(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category])
 
   // Close lightbox on Escape
@@ -96,12 +128,12 @@ export default function GaleriPage() {
             <div className="flex justify-center py-20">
               <LoadingSpinner size="lg" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : items.length === 0 ? (
             <p className="text-center py-20 text-gray-500">Belum ada foto.</p>
           ) : (
             <>
               <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 space-y-4">
-                {filtered.slice(0, visibleCount).map((item) => (
+                {items.map((item) => (
                   <div
                     key={item.id}
                     className="break-inside-avoid group relative overflow-hidden rounded-xl cursor-pointer"
@@ -110,7 +142,7 @@ export default function GaleriPage() {
                     <img
                       src={getThumbUrl(item.image_url)}
                       alt={item.title ?? 'Galeri'}
-                      className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full object-cover transition-transform duration-500 group-hover:scale-105 bg-gray-200"
                       loading="lazy"
                       decoding="async"
                     />
@@ -125,13 +157,14 @@ export default function GaleriPage() {
                 ))}
               </div>
 
-              {visibleCount < filtered.length && (
+              {hasMore && (
                 <div className="flex justify-center pt-8">
                   <button
-                    onClick={() => setVisibleCount((c) => c + ITEMS_PER_PAGE)}
-                    className="px-8 py-2.5 bg-[#2D6A4F] hover:bg-[#1B4332] text-white text-sm font-bold rounded-xl shadow transition-colors active:scale-95"
+                    onClick={() => fetchGallery(false)}
+                    disabled={loadingMore}
+                    className="px-8 py-2.5 bg-[#2D6A4F] hover:bg-[#1B4332] text-white text-sm font-bold rounded-xl shadow transition-colors active:scale-95 disabled:opacity-50"
                   >
-                    Muat Lebih Banyak ({filtered.length - visibleCount} foto lagi)
+                    {loadingMore ? 'Memuat...' : 'Muat Lebih Banyak'}
                   </button>
                 </div>
               )}
@@ -176,4 +209,3 @@ export default function GaleriPage() {
     </>
   )
 }
-

@@ -13,6 +13,7 @@ import {
   ClipboardCheck,
   Check,
 } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 import Modal, { ConfirmModal } from '../ui/Modal'
 import Button from '../ui/Button'
 import { useMediaStore, MediaItem } from '../../stores/mediaStore'
@@ -50,7 +51,10 @@ export default function MediaManager({
     sortBy,
     viewMode,
     selectedIds,
-    addMediaBatch,
+    isLoading,
+    hasMore,
+    fetchMedia,
+    addOptimisticMedia,
     deleteMediaBatch,
     createFolder,
     setSelectedFolder,
@@ -82,10 +86,10 @@ export default function MediaManager({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Scan app images on mount
+  // Fetch media on mount
   useEffect(() => {
     if (isOpen || isInline) {
-      scanExistingAppImages()
+      fetchMedia(true)
       setTargetFolderUpload(defaultFolder === 'semua' ? 'Lainnya' : defaultFolder)
     }
   }, [isOpen, isInline, defaultFolder])
@@ -120,7 +124,7 @@ export default function MediaManager({
     return () => window.removeEventListener('paste', handlePaste)
   }, [isOpen, isInline, targetFolderUpload, moduleName])
 
-  // Batch Process Upload
+  // Batch Process Upload to Supabase Storage
   const handleBatchProcessFiles = async (files: File[]) => {
     const validFiles: File[] = []
 
@@ -143,38 +147,86 @@ export default function MediaManager({
 
     try {
       const folderToSave = targetFolderUpload === 'semua' ? 'Lainnya' : targetFolderUpload
-      const processedResults: Array<Omit<MediaItem, 'id' | 'createdAt'>> = []
+      let successCount = 0
 
       for (let i = 0; i < validFiles.length; i++) {
         const file = validFiles[i]
+        
+        // 1. Kompresi gambar di client (Browser)
         const processed: ProcessedMedia = await processImageFile(file, file.name, {
-          maxDimension: 1920,
-          quality: 0.85,
+          maxDimension: 1200,
+          quality: 0.80,
         })
+        
+        // 2. Upload blob ke Supabase Storage (Bucket: 'media')
+        const uniqueFileName = `${Date.now()}_${processed.fileName}`
+        const storagePath = `${folderToSave}/${uniqueFileName}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(storagePath, processed.blob, {
+            cacheControl: '31536000',
+            upsert: false,
+            contentType: processed.mimeType
+          })
 
-        processedResults.push({
-          fileName: processed.fileName,
-          url: processed.base64,
-          fileSize: processed.fileSize,
-          mimeType: processed.mimeType,
-          width: processed.width,
-          height: processed.height,
+        if (uploadError) {
+          console.error('Storage Upload Error:', uploadError)
+          toast.error(`Gagal mengunggah ${processed.fileName}`)
+          continue
+        }
+
+        // 3. Dapatkan Public URL
+        const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
+        const publicUrl = publicUrlData.publicUrl
+
+        // 4. Insert data ke tabel `media_assets`
+        const { data: dbData, error: dbError } = await supabase.from('media_assets').insert({
+          file_name: processed.fileName,
+          file_size: processed.fileSize,
+          url: publicUrl,
+          mime_type: processed.mimeType,
+          module: moduleName,
           checksum: processed.checksum,
           folder: folderToSave,
-          module: moduleName,
-          altText: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
-          umkm_id: role === 'umkm_user' ? (myUmkm?.id || undefined) : undefined,
-        })
+          alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+          umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null
+        }).select().single()
+
+        if (dbError) {
+          console.error('Database Insert Error:', dbError)
+          toast.error(`Gagal menyimpan metadata ${processed.fileName}`)
+          continue
+        }
+
+        // 5. Tambahkan ke state UI (Optimistic Update)
+        if (dbData) {
+          addOptimisticMedia({
+            id: dbData.id,
+            fileName: dbData.file_name,
+            fileSize: dbData.file_size,
+            url: dbData.url,
+            mimeType: dbData.mime_type,
+            checksum: dbData.checksum || '',
+            folder: dbData.folder,
+            module: dbData.module,
+            createdAt: dbData.created_at,
+            altText: dbData.alt_text || '',
+            umkm_id: dbData.umkm_id
+          })
+          successCount++
+        }
 
         setUploadProgress(Math.round(((i + 1) / validFiles.length) * 100))
       }
 
-      const added = addMediaBatch(processedResults)
-      toast.success(`${added.length} media berhasil diunggah!`)
-      setSelectedFolder('semua')
-      setActiveTab('library')
+      if (successCount > 0) {
+        toast.success(`${successCount} media berhasil diunggah!`)
+        setSelectedFolder('semua')
+        setActiveTab('library')
+      }
     } catch (err) {
-      toast.error('Gagal mengunggah berkas gambar')
+      toast.error('Terjadi kesalahan sistem saat mengunggah')
       console.error(err)
     } finally {
       setIsUploading(false)
@@ -182,59 +234,24 @@ export default function MediaManager({
     }
   }
 
-  // Filtered & Sorted items
-  const filteredItems = useMemo(() => {
-    let result = [...items]
+  // Debounced Search Trigger
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchMedia(true) // Reset pagination when filter changes
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
-    // Role-based UMKM isolation
-    if (role === 'umkm_user') {
-      const umkmId = myUmkm?.id
-      result = result.filter(i => !i.umkm_id || i.umkm_id === umkmId)
+  // Handlers for infinite scroll
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget
+    if (scrollHeight - scrollTop <= clientHeight * 1.5 && !isLoading && hasMore) {
+      fetchMedia(false)
     }
+  }
 
-    // Folder filter
-    if (selectedFolder !== 'semua') {
-      result = result.filter((i) => i.folder === selectedFolder)
-    }
-
-    // Module filter
-    if (selectedModule !== 'semua') {
-      result = result.filter((i) => i.module === selectedModule)
-    }
-
-    // Search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter(
-        (i) =>
-          i.fileName.toLowerCase().includes(q) ||
-          (i.altText && i.altText.toLowerCase().includes(q))
-      )
-    }
-
-    // Sort
-    switch (sortBy) {
-      case 'oldest':
-        result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-        break
-      case 'name-asc':
-        result.sort((a, b) => a.fileName.localeCompare(b.fileName))
-        break
-      case 'name-desc':
-        result.sort((a, b) => b.fileName.localeCompare(a.fileName))
-        break
-      case 'size-desc':
-        result.sort((a, b) => b.fileSize - a.fileSize)
-        break
-      case 'size-asc':
-        result.sort((a, b) => a.fileSize - b.fileSize)
-        break
-      default: // newest
-        result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    }
-
-    return result
-  }, [items, selectedFolder, selectedModule, searchQuery, sortBy, role, myUmkm])
+  // Use items directly since they are now filtered on the server side
+  const filteredItems = items
 
   // Bulk actions
   const handleBulkDelete = () => {
@@ -548,8 +565,7 @@ export default function MediaManager({
             </div>
           )}
 
-          {/* Media Items Container */}
-          {filteredItems.length === 0 ? (
+          {filteredItems.length === 0 && !isLoading ? (
             <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
               <FileImage size={40} className="mx-auto mb-2 text-gray-300" />
               <p className="text-sm font-semibold text-gray-600">Tidak ada media yang ditemukan</p>
@@ -557,7 +573,10 @@ export default function MediaManager({
             </div>
           ) : viewMode === 'grid' ? (
             /* GRID VIEW */
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[440px] overflow-y-auto pr-1">
+            <div 
+              className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[440px] overflow-y-auto pr-1"
+              onScroll={handleScroll}
+            >
               {filteredItems.map((item) => {
                 const isSelected = selectedIds.includes(item.id)
                 return (
@@ -600,10 +619,18 @@ export default function MediaManager({
                   </div>
                 )
               })}
+              {isLoading && (
+                <div className="col-span-full py-4 flex justify-center">
+                  <div className="w-6 h-6 border-2 border-[#2D6A4F] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
           ) : (
             /* LIST VIEW */
-            <div className="divide-y divide-gray-100 max-h-[440px] overflow-y-auto border border-gray-200 rounded-2xl bg-white">
+            <div 
+              className="divide-y divide-gray-100 max-h-[440px] overflow-y-auto border border-gray-200 rounded-2xl bg-white"
+              onScroll={handleScroll}
+            >
               {filteredItems.map((item) => {
                 const isSelected = selectedIds.includes(item.id)
                 return (
@@ -649,6 +676,11 @@ export default function MediaManager({
                   </div>
                 )
               })}
+              {isLoading && (
+                <div className="py-4 flex justify-center">
+                  <div className="w-6 h-6 border-2 border-[#2D6A4F] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -680,21 +712,11 @@ export default function MediaManager({
             onClose={() => setCropItemSrc(null)}
             imageSrc={cropItemSrc}
             fileNameInitial={cropItemName}
-            onSave={(processed) => {
-              addMediaBatch([
-                {
-                  fileName: processed.fileName,
-                  url: processed.base64,
-                  fileSize: processed.fileSize,
-                  mimeType: processed.mimeType,
-                  width: processed.width,
-                  height: processed.height,
-                  checksum: processed.checksum,
-                  folder: targetFolderUpload,
-                  module: moduleName,
-                },
-              ])
-              setActiveTab('library')
+            onSave={async (processed) => {
+              // Convert ProcessedMedia back to File for batch uploader
+              const file = new File([processed.blob], processed.fileName, { type: processed.mimeType })
+              handleBatchProcessFiles([file])
+              setCropItemSrc(null)
             }}
           />
         )}
@@ -734,21 +756,10 @@ export default function MediaManager({
           onClose={() => setCropItemSrc(null)}
           imageSrc={cropItemSrc}
           fileNameInitial={cropItemName}
-          onSave={(processed) => {
-            addMediaBatch([
-              {
-                fileName: processed.fileName,
-                url: processed.base64,
-                fileSize: processed.fileSize,
-                mimeType: processed.mimeType,
-                width: processed.width,
-                height: processed.height,
-                checksum: processed.checksum,
-                folder: targetFolderUpload,
-                module: moduleName,
-              },
-            ])
-            setActiveTab('library')
+          onSave={async (processed) => {
+            const file = new File([processed.blob], processed.fileName, { type: processed.mimeType })
+            handleBatchProcessFiles([file])
+            setCropItemSrc(null)
           }}
         />
       )}
