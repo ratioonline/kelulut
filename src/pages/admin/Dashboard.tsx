@@ -63,16 +63,30 @@ export default function Dashboard() {
       })
       const visitData = Object.entries(vTypes).map(([name, value]) => ({ name, value })).filter(d => d.value > 0)
 
-      // Dummy line chart data for demo
-      const mockSalesData = [
-        { name: '01', kunjungan: 400, pendapatan: 2400 },
-        { name: '05', kunjungan: 300, pendapatan: 1398 },
-        { name: '10', kunjungan: 200, pendapatan: 9800 },
-        { name: '15', kunjungan: 278, pendapatan: 3908 },
-        { name: '20', kunjungan: 189, pendapatan: 4800 },
-        { name: '25', kunjungan: 239, pendapatan: 3800 },
-        { name: '30', kunjungan: 349, pendapatan: 4300 },
-      ]
+      // ── Grafik batang: kunjungan per bulan (6 bulan terakhir) ──
+      const now = new Date()
+      const monthlyMap: Record<string, { kunjungan: number; rombongan: number }> = {}
+
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+        monthlyMap[key] = { kunjungan: 0, rombongan: 0 }
+      }
+
+      reservations?.forEach(r => {
+        const d = new Date(r.visit_date)
+        const key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
+        if (monthlyMap[key] !== undefined) {
+          monthlyMap[key].kunjungan  += r.num_visitors || 0
+          monthlyMap[key].rombongan  += 1
+        }
+      })
+
+      const barData = Object.entries(monthlyMap).map(([name, v]) => ({
+        name,
+        Pengunjung: v.kunjungan,
+        Rombongan: v.rombongan,
+      }))
 
       // Filter and sort for upcoming reservations
       const today = new Date()
@@ -91,7 +105,7 @@ export default function Dashboard() {
       setRecentReservations(upcomingReservations.slice(0, 5))
       setTopProducts((topProds || []) as Product[])
       setVisitTypes(visitData)
-      setSalesData(mockSalesData)
+      setSalesData(barData)
       setLoading(false)
     }
     fetchAll()
@@ -121,20 +135,85 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardBody>
-            <h2 className="text-sm font-bold text-gray-900 mb-6">Tren Kunjungan & Pendapatan</h2>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-sm font-bold text-gray-900">Statistik Pengunjung</h2>
+                <p className="text-xs text-gray-400 mt-0.5">6 bulan terakhir berdasarkan data reservasi</p>
+              </div>
+              <div className="flex items-center gap-4 text-xs text-gray-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-[#2D6A4F] inline-block" />
+                  Pengunjung
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-sm bg-[#F5A623] inline-block" />
+                  Rombongan
+                </span>
+              </div>
+            </div>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={salesData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis yAxisId="left" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis yAxisId="right" orientation="right" fontSize={12} tickLine={false} axisLine={false} />
-                  <RechartsTooltip />
-                  <Line yAxisId="left" type="monotone" dataKey="kunjungan" stroke="#2D6A4F" strokeWidth={3} dot={false} />
-                  <Line yAxisId="right" type="monotone" dataKey="pendapatan" stroke="#4A90E2" strokeWidth={3} dot={false} />
-                </LineChart>
+                <BarChart data={salesData} barCategoryGap="30%" barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="name"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#6b7280' }}
+                  />
+                  <YAxis
+                    yAxisId="left"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#6b7280' }}
+                    width={40}
+                  />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#6b7280' }}
+                    width={30}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: 'rgba(0,0,0,0.04)' }}
+                    contentStyle={{
+                      borderRadius: '10px',
+                      border: '1px solid #e5e7eb',
+                      fontSize: '12px',
+                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                    }}
+                    formatter={(value: number, name: string) => [
+                      name === 'Pengunjung' ? `${value} orang` : `${value} rombongan`,
+                      name,
+                    ]}
+                  />
+                  <Bar
+                    yAxisId="left"
+                    dataKey="Pengunjung"
+                    fill="#2D6A4F"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={40}
+                  />
+                  <Bar
+                    yAxisId="right"
+                    dataKey="Rombongan"
+                    fill="#F5A623"
+                    radius={[6, 6, 0, 0]}
+                    maxBarSize={40}
+                  />
+                </BarChart>
               </ResponsiveContainer>
             </div>
+            {salesData.every(d => d.Pengunjung === 0) && (
+              <p className="text-center text-xs text-gray-400 -mt-8">
+                Belum ada data reservasi 6 bulan terakhir
+              </p>
+            )}
           </CardBody>
         </Card>
         
