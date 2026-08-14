@@ -22,7 +22,7 @@ import toast from 'react-hot-toast'
 const navItems = [
   { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['super_admin', 'proktor', 'umkm_user'] },
   { to: '/admin/transaksi', icon: ShoppingBag,     label: 'Kasir (Offline)', roles: ['super_admin', 'proktor', 'umkm_user'] },
-  { to: '/admin/profil',    icon: Store,           label: 'Profil UMKM', roles: ['umkm_user'] },
+  { to: '/admin/profil',    icon: Store,           label: 'Profil UMKM', roles: ['umkm_user', 'proktor'] },
   { to: '/admin/media',     icon: Images,          label: 'Media Library', roles: ['super_admin', 'proktor'] },
   { to: '/admin/hero',      icon: LayoutTemplate,  label: 'Hero Slider',     roles: ['super_admin', 'proktor'] },
   { to: '/admin/profil-website', icon: Building2,  label: 'Profil Website',  roles: ['super_admin', 'proktor'] },

@@ -141,9 +141,14 @@ export default function AdminPengguna() {
       return
     }
 
-    // Proktor hanya boleh membuat umkm_user dan guest
-    if (isProktor && (data.role === 'super_admin' || data.role === 'proktor')) {
-      toast.error('Proktor hanya dapat membuat akun UMKM User atau Guest.')
+    // Jika role UMKM User dipilih atau nama UMKM diisi, otomatis jadikan role 'proktor'
+    const finalRole = (data.role === 'umkm_user' || (data.umkmName && data.umkmName.trim() !== ''))
+      ? 'proktor'
+      : data.role
+
+    // Proktor hanya boleh membuat akun UMKM / Proktor dan Guest
+    if (isProktor && (data.role === 'super_admin')) {
+      toast.error('Proktor tidak dapat membuat akun Administrator.')
       return
     }
     if (data.role === 'umkm_user' && !data.umkmName) {
@@ -163,20 +168,22 @@ export default function AdminPengguna() {
       const userId = authData.user.id
 
       const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
-        id: userId, email: data.email, role: data.role,
+        id: userId,
+        email: data.email,
+        role: finalRole,
       })
       if (profileError) throw new Error(profileError.message)
 
-      if (data.role === 'umkm_user' && data.umkmName) {
+      if (data.umkmName && data.umkmName.trim() !== '') {
         await supabaseAdmin.from('umkms').insert({
           user_id: userId,
-          name: data.umkmName,
-          slug: slugify(data.umkmName),
+          name: data.umkmName.trim(),
+          slug: slugify(data.umkmName.trim()),
           status: 'active',
         })
       }
 
-      toast.success('Pengguna berhasil dibuat')
+      toast.success('Pengguna berhasil dibuat (Otomatis role Proktor)')
       setModalOpen(false)
       fetchUsers()
     } catch (err: any) {
@@ -459,8 +466,7 @@ export default function AdminPengguna() {
               {...regCreate('role')}
               className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F] text-sm"
             >
-              {/* Proktor hanya bisa buat UMKM User dan Guest */}
-              <option value="umkm_user">UMKM User</option>
+              <option value="umkm_user">UMKM (Otomatis Role Proktor)</option>
               <option value="guest">Guest</option>
               {isSuperAdmin && (
                 <>
@@ -469,12 +475,9 @@ export default function AdminPengguna() {
                 </>
               )}
             </select>
-            {isProktor && (
-              <p className="text-xs text-gray-400 mt-1">
-                <Lock size={10} className="inline mr-1" />
-                Proktor hanya dapat membuat akun UMKM User dan Guest.
-              </p>
-            )}
+            <p className="text-xs text-gray-400 mt-1">
+              Akun pengguna UMKM otomatis mendapatkan peran Proktor.
+            </p>
           </div>
 
           {selectedCreateRole === 'umkm_user' && (
@@ -485,7 +488,7 @@ export default function AdminPengguna() {
                 error={errCreate.umkmName?.message}
                 {...regCreate('umkmName')}
               />
-              <p className="text-xs text-gray-500 mt-1">Sistem akan otomatis membuatkan profil UMKM untuk pengguna ini.</p>
+              <p className="text-xs text-gray-500 mt-1">Sistem akan otomatis membuatkan profil UMKM dan mengatur peran akun sebagai Proktor.</p>
             </div>
           )}
         </form>

@@ -41,7 +41,7 @@ export default function AdminProfile() {
   })
 
   useEffect(() => {
-    if (user?.id && role === 'umkm_user') {
+    if (user?.id && (role === 'umkm_user' || role === 'proktor')) {
       fetchMyUmkm(user.id)
     }
   }, [user, role, fetchMyUmkm])
@@ -83,12 +83,12 @@ export default function AdminProfile() {
     }
   }
 
-  if (role !== 'umkm_user') {
+  if (role !== 'umkm_user' && role !== 'proktor') {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <Store size={48} className="text-gray-300 mb-4" />
-        <h2 className="text-xl font-bold text-gray-800">Bukan Akun UMKM</h2>
-        <p className="text-gray-500 mt-2">Halaman ini khusus untuk user UMKM mengelola profilnya.</p>
+        <h2 className="text-xl font-bold text-gray-800">Bukan Akun Pemilik UMKM</h2>
+        <p className="text-gray-500 mt-2">Halaman ini khusus untuk pengelola UMKM.</p>
       </div>
     )
   }

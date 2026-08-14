@@ -82,10 +82,10 @@ export default function AdminUmkmManagement() {
       if (authError) throw authError
       if (!authData.user) throw new Error('User creation failed')
 
-      // 2. Create user_profile
+      // 2. Create user_profile (otomatis role proktor)
       await supabase.from('user_profiles').insert({
         id: authData.user.id,
-        role: 'umkm_user',
+        role: 'proktor',
         full_name: formOwner || formName,
       })
 
