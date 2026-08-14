@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { UploadCloud, X, ImageIcon, CheckCircle } from 'lucide-react'
+import { UploadCloud, X, ImageIcon, CheckCircle, Camera } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import CameraCaptureModal from '../media/CameraCaptureModal'
 
 interface ImageUploadProps {
   value?: string
@@ -16,6 +17,8 @@ interface ImageUploadProps {
   /** Alias untuk maxInputMB agar kompatibel dengan prop lama */
   maxSizeMB?: number
   className?: string
+  /** Opsi mengaktifkan tombol kamera langsung. Default true */
+  allowCamera?: boolean
 }
 
 interface CompressInfo {
@@ -90,6 +93,7 @@ export default function ImageUpload({
   maxInputMB: maxInputMBProp,
   maxSizeMB,
   className,
+  allowCamera = true,
 }: ImageUploadProps) {
   // Support both maxInputMB and legacy maxSizeMB prop
   const maxInputMB = maxInputMBProp ?? maxSizeMB ?? 10
@@ -97,6 +101,7 @@ export default function ImageUpload({
   const [dragging, setDragging] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [info, setInfo] = useState<CompressInfo | null>(null)
+  const [isCameraOpen, setIsCameraOpen] = useState(false)
 
   const processFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -145,7 +150,19 @@ export default function ImageUpload({
   return (
     <div className={cn('flex flex-col gap-1', className)}>
       {label && (
-        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm font-medium text-gray-700">{label}</label>
+          {allowCamera && (
+            <button
+              type="button"
+              onClick={() => setIsCameraOpen(true)}
+              className="text-xs text-[#2D6A4F] hover:underline flex items-center gap-1 font-medium"
+            >
+              <Camera size={13} />
+              <span>Foto dari Kamera</span>
+            </button>
+          )}
+        </div>
       )}
 
       <div
@@ -171,7 +188,7 @@ export default function ImageUpload({
               className="w-full h-48 object-cover"
             />
             {/* Overlay tombol aksi */}
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-all duration-200 flex items-center justify-center gap-3">
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/45 transition-all duration-200 flex items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
@@ -180,6 +197,16 @@ export default function ImageUpload({
                 <UploadCloud size={14} />
                 Ganti
               </button>
+              {allowCamera && (
+                <button
+                  type="button"
+                  onClick={() => setIsCameraOpen(true)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow"
+                >
+                  <Camera size={14} />
+                  Kamera
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleRemove}
@@ -192,7 +219,7 @@ export default function ImageUpload({
           </div>
         ) : (
           /* ── Empty / Processing state ── */
-          <div className="flex flex-col items-center justify-center py-10 px-4 text-center select-none">
+          <div className="flex flex-col items-center justify-center py-8 px-4 text-center select-none">
             {processing ? (
               <>
                 <div className="w-10 h-10 border-2 border-[#2D6A4F] border-t-transparent rounded-full animate-spin mb-3" />
@@ -213,9 +240,21 @@ export default function ImageUpload({
                 <p className="text-xs text-gray-400 mt-1">
                   JPG, PNG, WebP — Maks. {maxInputMB}MB
                 </p>
-                <p className="text-xs text-gray-300 mt-0.5">
-                  Otomatis dikompres → WebP, max {maxDimension}px
-                </p>
+                {allowCamera && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsCameraOpen(true)
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs text-[#2D6A4F] font-semibold bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-1 rounded-lg transition-colors"
+                    >
+                      <Camera size={13} />
+                      <span>Atau Ambil dari Kamera</span>
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -242,7 +281,17 @@ export default function ImageUpload({
         onChange={handleFileChange}
       />
 
+      {/* Camera Capture Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        onCapture={(file) => {
+          processFile(file)
+        }}
+      />
+
       {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   )
 }
+

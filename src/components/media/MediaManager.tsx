@@ -12,6 +12,8 @@ import {
   Folder,
   ClipboardCheck,
   Check,
+  Camera,
+  Sparkles,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Modal, { ConfirmModal } from '../ui/Modal'
@@ -21,6 +23,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { processImageFile, formatBytes, ProcessedMedia } from '../../lib/mediaUtils'
 import ImageCropModal from './ImageCropModal'
 import MediaDetailModal from './MediaDetailModal'
+import CameraCaptureModal from './CameraCaptureModal'
 import toast from 'react-hot-toast'
 
 interface MediaManagerProps {
@@ -77,6 +80,7 @@ export default function MediaManager({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [cropItemSrc, setCropItemSrc] = useState<string | File | null>(null)
   const [cropItemName, setCropItemName] = useState('')
+  const [isCameraOpen, setIsCameraOpen] = useState(false)
 
   // Detail Modal state
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null)
@@ -310,8 +314,8 @@ export default function MediaManager({
   const mainContent = (
     <div className="space-y-4">
       {/* Header Tabs */}
-      <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-        <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-200 pb-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab('library')}
@@ -324,6 +328,7 @@ export default function MediaManager({
             <Grid size={16} className="inline mr-2" />
             Media Library ({filteredItems.length})
           </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('upload')}
@@ -334,12 +339,22 @@ export default function MediaManager({
             }`}
           >
             <UploadCloud size={16} className="inline mr-2" />
-            Upload Baru
+            Upload Berkas
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCameraOpen(true)}
+            className="px-4 py-2 rounded-xl text-sm font-semibold transition-all bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 flex items-center gap-1.5"
+            title="Buka kamera untuk mengambil foto secara langsung"
+          >
+            <Camera size={16} className="text-[#2D6A4F]" />
+            <span>Foto Kamera Langsung</span>
           </button>
         </div>
 
         {/* Ctrl+V Hint */}
-        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
           <ClipboardCheck size={14} className="text-amber-600 shrink-0" />
           <span>Dukungan <strong>Ctrl+V</strong> dari Clipboard</span>
         </div>
@@ -349,7 +364,7 @@ export default function MediaManager({
       {activeTab === 'upload' && (
         <div className="space-y-4 py-2">
           {/* Folder Target Selection */}
-          <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50 p-3.5 rounded-2xl border border-gray-200">
             <div className="flex items-center gap-2">
               <Folder size={18} className="text-[#2D6A4F]" />
               <span className="text-xs font-semibold text-gray-700">Simpan ke Folder:</span>
@@ -374,7 +389,7 @@ export default function MediaManager({
                 onClick={() => setShowCreateFolder(true)}
                 className="text-xs font-semibold text-[#2D6A4F] hover:underline flex items-center gap-1"
               >
-                <FolderPlus size={14} /> Buat Folder
+                <FolderPlus size={14} /> Buat Folder Baru
               </button>
             ) : (
               <div className="flex items-center gap-2">
@@ -395,51 +410,80 @@ export default function MediaManager({
             )}
           </div>
 
-          {/* Upload Dropzone */}
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault()
-              if (e.dataTransfer.files?.length) {
-                handleBatchProcessFiles(Array.from(e.dataTransfer.files))
-              }
-            }}
-            className="border-2 border-dashed border-[#2D6A4F]/40 hover:border-[#2D6A4F] hover:bg-[#2D6A4F]/5 bg-gray-50/50 rounded-2xl p-10 text-center cursor-pointer transition-all duration-200 select-none"
-          >
-            {isUploading ? (
-              <div className="space-y-3">
-                <div className="w-12 h-12 border-3 border-[#2D6A4F] border-t-transparent rounded-full animate-spin mx-auto" />
-                <p className="text-sm font-semibold text-gray-800">
-                  Mengolah & Mengompres Gambar ({uploadProgress}%)
-                </p>
-                <div className="w-64 max-w-full h-2 bg-gray-200 rounded-full mx-auto overflow-hidden">
-                  <div
-                    className="h-full bg-[#2D6A4F] transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                  />
+          {/* Upload Method Options Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Option 1: File Dropzone */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault()
+                if (e.dataTransfer.files?.length) {
+                  handleBatchProcessFiles(Array.from(e.dataTransfer.files))
+                }
+              }}
+              className="border-2 border-dashed border-[#2D6A4F]/40 hover:border-[#2D6A4F] hover:bg-[#2D6A4F]/5 bg-gray-50/50 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 select-none flex flex-col items-center justify-center min-h-[220px]"
+            >
+              {isUploading ? (
+                <div className="space-y-3 w-full">
+                  <div className="w-10 h-10 border-3 border-[#2D6A4F] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-semibold text-gray-800">
+                    Mengolah & Mengompres Gambar ({uploadProgress}%)
+                  </p>
+                  <div className="w-48 max-w-full h-2 bg-gray-200 rounded-full mx-auto overflow-hidden">
+                    <div
+                      className="h-full bg-[#2D6A4F] transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="w-16 h-16 bg-[#2D6A4F]/10 text-[#2D6A4F] rounded-2xl flex items-center justify-center mx-auto shadow-sm">
-                  <UploadCloud size={32} />
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="w-14 h-14 bg-[#2D6A4F]/10 text-[#2D6A4F] rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+                    <UploadCloud size={28} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">
+                      Pilih / Seret Berkas Gambar
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      JPG, PNG, WebP, SVG — Maks. 20 MB (Multiple Upload)
+                    </p>
+                  </div>
+                  <div className="pt-1">
+                    <span className="inline-block bg-white border border-gray-200 shadow-sm px-3.5 py-1.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                      Buka File Manager
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Option 2: Live Camera Capture */}
+            <div
+              onClick={() => setIsCameraOpen(true)}
+              className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/50 bg-emerald-50/20 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 select-none flex flex-col items-center justify-center min-h-[220px]"
+            >
+              <div className="space-y-2.5">
+                <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center mx-auto shadow-md">
+                  <Camera size={28} />
                 </div>
                 <div>
-                  <p className="text-base font-bold text-gray-800">
-                    Klik atau Seret Gambar ke Sini
+                  <p className="text-sm font-bold text-emerald-950">
+                    Ambil Foto Langsung (Kamera)
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Mendukung Multiple Upload, Paste Clipboard (Ctrl+V), JPG, PNG, WebP, SVG, AVIF — Maks. 20 MB
+                  <p className="text-[11px] text-emerald-700 mt-0.5">
+                    Gunakan kamera HP / webcam laptop secara langsung
                   </p>
                 </div>
-                <div className="pt-2">
-                  <span className="inline-block bg-white border border-gray-200 shadow-sm px-4 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                    Pilih Berkas dari Perangkat
+                <div className="pt-1">
+                  <span className="inline-flex items-center gap-1.5 bg-[#2D6A4F] text-white shadow-sm px-3.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-[#1B4332]">
+                    <Camera size={13} />
+                    <span>Buka Kamera Sekarang</span>
                   </span>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           <input
@@ -706,6 +750,16 @@ export default function MediaManager({
       <>
         {mainContent}
 
+        {/* Camera Capture Modal */}
+        <CameraCaptureModal
+          isOpen={isCameraOpen}
+          onClose={() => setIsCameraOpen(false)}
+          folderName={targetFolderUpload}
+          onCapture={(file) => {
+            handleBatchProcessFiles([file])
+          }}
+        />
+
         {/* Crop Modal */}
         {cropItemSrc && (
           <ImageCropModal
@@ -749,6 +803,16 @@ export default function MediaManager({
       <Modal open={isOpen} onClose={onClose} title="Media Manager" size="xl">
         {mainContent}
       </Modal>
+
+      {/* Camera Capture Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraOpen}
+        onClose={() => setIsCameraOpen(false)}
+        folderName={targetFolderUpload}
+        onCapture={(file) => {
+          handleBatchProcessFiles([file])
+        }}
+      />
 
       {/* Crop Modal */}
       {cropItemSrc && (
