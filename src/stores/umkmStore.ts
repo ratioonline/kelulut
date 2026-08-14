@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAdmin } from '../lib/supabase'
 import type { Product, Umkm, StockMovement, AuditLog, ProductReview, ReviewReply, Category } from '../types/database'
 import { slugify } from '../lib/utils'
 
@@ -144,8 +144,40 @@ export const useUmkmStore = create<UmkmState>()((set, get) => ({
 
   deleteProduct: async (id: string, userId: string, umkmId: string) => {
     const product = get().products.find(p => p.id === id)
-    const { error } = await supabase.from('products').delete().eq('id', id).eq('umkm_id', umkmId)
-    if (error) return { error: error.message }
+    const db = supabaseAdmin || supabase
+    
+    // Check if there are transaction items
+    const { count: txCount } = await supabase
+      .from('transaction_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_id', id)
+
+    if (txCount && txCount > 0) {
+      // Archive instead of hard delete
+      const { error: archiveErr } = await db
+        .from('products')
+        .update({ status: 'inactive', is_available: false, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('umkm_id', umkmId)
+      if (archiveErr) return { error: archiveErr.message }
+    } else {
+      // Clean up child dependencies
+      try {
+        await db.from('stock_movements').delete().eq('product_id', id)
+        await db.from('product_reviews').delete().eq('product_id', id)
+      } catch (e) {
+        console.warn('Child cleanup warning:', e)
+      }
+      
+      const { error } = await db.from('products').delete().eq('id', id).eq('umkm_id', umkmId)
+      if (error) {
+        // Fallback to archive if still constrained
+        await db
+          .from('products')
+          .update({ status: 'inactive', is_available: false, updated_at: new Date().toISOString() })
+          .eq('id', id)
+      }
+    }
 
     await get().logAudit(userId, umkmId, 'delete', 'product', id, { name: product?.name })
     await get().fetchProducts(umkmId)

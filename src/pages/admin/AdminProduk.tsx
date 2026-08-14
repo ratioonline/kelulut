@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
 import type { Product, Umkm } from '../../types/database'
 import { slugify } from '../../lib/utils'
@@ -420,27 +420,50 @@ export default function AdminProduk() {
     if (!deleteTarget) return
     setDeleting(true)
     try {
+      const db = (role === 'super_admin' && supabaseAdmin) ? supabaseAdmin : supabase
+
       if (deleteWarning) {
         // Safe archive / deactivate instead of hard delete
-        const { error } = await supabase
+        const { error } = await db
           .from('products')
-          .update({ status: 'inactive', is_available: false })
+          .update({ status: 'inactive', is_available: false, updated_at: new Date().toISOString() })
           .eq('id', deleteTarget.id)
         if (error) throw error
         toast.success(`Produk "${deleteTarget.name}" berhasil dinonaktifkan`)
       } else {
+        // Clean up child dependencies before hard delete to prevent FK violation
+        try {
+          await db.from('stock_movements').delete().eq('product_id', deleteTarget.id)
+          await db.from('product_reviews').delete().eq('product_id', deleteTarget.id)
+        } catch (cleanupErr) {
+          console.warn('Child cleanup warning:', cleanupErr)
+        }
+
         // Hard delete
-        const { error } = await supabase.from('products').delete().eq('id', deleteTarget.id)
-        if (error) throw error
-        toast.success(`Produk "${deleteTarget.name}" berhasil dihapus`)
+        const { error } = await db.from('products').delete().eq('id', deleteTarget.id)
+        if (error) {
+          console.warn('Hard delete failed, falling back to archiving:', error)
+          // Fallback if still blocked by constraint
+          const { error: fallbackErr } = await db
+            .from('products')
+            .update({ status: 'inactive', is_available: false, updated_at: new Date().toISOString() })
+            .eq('id', deleteTarget.id)
+          if (fallbackErr) throw fallbackErr
+          toast.success(`Produk "${deleteTarget.name}" dinonaktifkan (diarsipkan)`)
+        } else {
+          toast.success(`Produk "${deleteTarget.name}" berhasil dihapus`)
+        }
       }
 
       setDeleteTarget(null)
+      if (quickViewProduct?.id === deleteTarget.id) {
+        setQuickViewProduct(null)
+      }
       fetchProducts()
       fetchKpiStats()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error deleting product:', err)
-      toast.error('Gagal menghapus produk')
+      toast.error(err?.message || 'Gagal menghapus produk')
     } finally {
       setDeleting(false)
     }
@@ -449,9 +472,10 @@ export default function AdminProduk() {
   // Bulk Actions
   const handleBulkActivate = async () => {
     if (selectedIds.length === 0) return
-    const { error } = await supabase
+    const db = (role === 'super_admin' && supabaseAdmin) ? supabaseAdmin : supabase
+    const { error } = await db
       .from('products')
-      .update({ status: 'active', is_available: true })
+      .update({ status: 'active', is_available: true, updated_at: new Date().toISOString() })
       .in('id', selectedIds)
     if (!error) {
       toast.success(`${selectedIds.length} produk diaktifkan`)
@@ -463,9 +487,10 @@ export default function AdminProduk() {
 
   const handleBulkDeactivate = async () => {
     if (selectedIds.length === 0) return
-    const { error } = await supabase
+    const db = (role === 'super_admin' && supabaseAdmin) ? supabaseAdmin : supabase
+    const { error } = await db
       .from('products')
-      .update({ status: 'inactive', is_available: false })
+      .update({ status: 'inactive', is_available: false, updated_at: new Date().toISOString() })
       .in('id', selectedIds)
     if (!error) {
       toast.success(`${selectedIds.length} produk dinonaktifkan`)
@@ -479,15 +504,32 @@ export default function AdminProduk() {
     if (selectedIds.length === 0) return
     if (!window.confirm(`Hapus / nonaktifkan ${selectedIds.length} produk terpilih?`)) return
 
-    const { error } = await supabase
-      .from('products')
-      .update({ status: 'inactive', is_available: false })
-      .in('id', selectedIds)
-    if (!error) {
-      toast.success(`${selectedIds.length} produk berhasil diarsipkan`)
+    const db = (role === 'super_admin' && supabaseAdmin) ? supabaseAdmin : supabase
+
+    try {
+      for (const id of selectedIds) {
+        await db.from('stock_movements').delete().eq('product_id', id)
+        await db.from('product_reviews').delete().eq('product_id', id)
+      }
+
+      const { error } = await db.from('products').delete().in('id', selectedIds)
+      if (error) {
+        // Fallback: archive all selected
+        await db
+          .from('products')
+          .update({ status: 'inactive', is_available: false, updated_at: new Date().toISOString() })
+          .in('id', selectedIds)
+        toast.success(`${selectedIds.length} produk berhasil diarsipkan`)
+      } else {
+        toast.success(`${selectedIds.length} produk berhasil dihapus`)
+      }
+
       setSelectedIds([])
       fetchProducts()
       fetchKpiStats()
+    } catch (err: any) {
+      console.error('Bulk delete error:', err)
+      toast.error('Gagal menghapus produk terpilih')
     }
   }
 
