@@ -9,6 +9,7 @@ const navLinks = [
   { to: '/', label: 'Beranda' },
   { to: '/program', label: 'Program' },
   { to: '/produk', label: 'Produk' },
+  { to: '/umkm-directory', label: 'Mitra UMKM' },
   { to: '/artikel', label: 'Artikel' },
   { to: '/galeri', label: 'Galeri' },
   { to: '/kontak', label: 'Kontak' },

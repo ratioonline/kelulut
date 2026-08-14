@@ -66,8 +66,8 @@ export default function UmkmPublicProfile() {
       <div className="min-h-screen bg-gray-50 pt-16">
         {/* Cover */}
         <div className="h-52 md:h-72 bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] relative">
-          {umkm.cover_image && (
-            <img src={umkm.cover_image} alt="" className="w-full h-full object-cover opacity-50" />
+          {(umkm.cover_image_url || umkm.cover_image) && (
+            <img src={umkm.cover_image_url || umkm.cover_image} alt="" className="w-full h-full object-cover opacity-50" loading="lazy" />
           )}
         </div>
 
@@ -75,8 +75,8 @@ export default function UmkmPublicProfile() {
           {/* Profile Header */}
           <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col md:flex-row gap-6 items-start">
             {/* Logo */}
-            {umkm.logo ? (
-              <img src={umkm.logo} alt={umkm.name} className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-lg -mt-16 md:-mt-20" />
+            {(umkm.logo_url || umkm.logo) ? (
+              <img src={umkm.logo_url || umkm.logo} alt={umkm.name} className="w-24 h-24 rounded-2xl object-cover border-4 border-white shadow-lg -mt-16 md:-mt-20" loading="lazy" />
             ) : (
               <div className="w-24 h-24 rounded-2xl bg-[#2D6A4F] flex items-center justify-center text-3xl font-bold text-white border-4 border-white shadow-lg -mt-16 md:-mt-20">
                 {umkm.name[0]}

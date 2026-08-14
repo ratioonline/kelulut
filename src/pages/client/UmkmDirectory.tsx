@@ -83,13 +83,13 @@ export default function UmkmDirectory() {
               >
                 {/* Cover */}
                 <div className="h-36 bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] relative overflow-hidden">
-                  {u.cover_image && (
-                    <img src={u.cover_image} alt="" className="w-full h-full object-cover opacity-60" />
+                  {(u.cover_image_url || u.cover_image) && (
+                    <img src={u.cover_image_url || u.cover_image} alt="" className="w-full h-full object-cover opacity-60" loading="lazy" />
                   )}
                   {/* Logo overlay */}
                   <div className="absolute -bottom-6 left-4">
-                    {u.logo ? (
-                      <img src={u.logo} alt={u.name} className="w-14 h-14 rounded-xl object-cover border-3 border-white shadow-lg" />
+                    {(u.logo_url || u.logo) ? (
+                      <img src={u.logo_url || u.logo} alt={u.name} className="w-14 h-14 rounded-xl object-cover border-3 border-white shadow-lg" loading="lazy" />
                     ) : (
                       <div className="w-14 h-14 rounded-xl bg-white shadow-lg flex items-center justify-center text-xl font-bold text-[#2D6A4F] border-3 border-white">
                         {u.name[0]}
