@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, KeyRound, Pencil } from 'lucide-react'
+import { Plus, Trash2, KeyRound, Pencil, Lock } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -16,23 +16,28 @@ import { slugify } from '../../lib/utils'
 
 // ── Skema Form Buat Pengguna ────────────────────────────────────────────────
 const createSchema = z.object({
-  email: z.string().email('Email tidak valid'),
+  email:    z.string().email('Email tidak valid'),
   password: z.string().min(6, 'Password minimal 6 karakter'),
-  role: z.enum(['super_admin', 'proktor', 'umkm_user', 'guest']),
+  role:     z.enum(['super_admin', 'proktor', 'umkm_user', 'guest']),
   umkmName: z.string().optional(),
 })
 type CreateFormData = z.infer<typeof createSchema>
 
 // ── Skema Form Edit Pengguna ────────────────────────────────────────────────
 const editSchema = z.object({
-  email: z.string().email('Email tidak valid'),
-  full_name: z.string().optional(),
-  role: z.enum(['super_admin', 'proktor', 'umkm_user', 'guest']),
+  email:       z.string().email('Email tidak valid'),
+  full_name:   z.string().optional(),
+  role:        z.enum(['super_admin', 'proktor', 'umkm_user', 'guest']),
   newPassword: z.string().optional(),
 })
 type EditFormData = z.infer<typeof editSchema>
 
 type UserWithUmkm = UserProfile & { umkm_name?: string; umkm_id?: string }
+
+// ── Helper: cek apakah proktor boleh edit user ini ──────────────────────────
+// Proktor hanya boleh edit umkm_user dan guest — TIDAK proktor lain / admin
+const proktorCanEdit = (targetRole: string) =>
+  targetRole === 'umkm_user' || targetRole === 'guest'
 
 export default function AdminPengguna() {
   const [users, setUsers]               = useState<UserWithUmkm[]>([])
@@ -45,6 +50,9 @@ export default function AdminPengguna() {
   const [editTarget, setEditTarget]     = useState<UserWithUmkm | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { role: myRole } = useAuthStore()
+
+  const isProktor      = myRole === 'proktor'
+  const isSuperAdmin   = myRole === 'super_admin'
 
   // ── Form: Buat pengguna baru ──
   const {
@@ -72,10 +80,17 @@ export default function AdminPengguna() {
   // ── Fetch data ──────────────────────────────────────────────────────────
   const fetchUsers = async () => {
     setLoading(true)
-    const { data: profiles, error: profileErr } = await supabase
+    let query = supabase
       .from('user_profiles')
       .select('*')
       .order('created_at', { ascending: false })
+
+    // Proktor: sembunyikan akun super_admin
+    if (isProktor) {
+      query = query.neq('role', 'super_admin')
+    }
+
+    const { data: profiles, error: profileErr } = await query
 
     if (profileErr) {
       toast.error('Gagal mengambil data pengguna')
@@ -85,7 +100,7 @@ export default function AdminPengguna() {
 
     const { data: umkms } = await supabase.from('umkms').select('id, user_id, name')
 
-    const combined = profiles.map(p => {
+    const combined = (profiles ?? []).map(p => {
       const umkm = umkms?.find(u => u.user_id === p.id)
       return { ...p, umkm_name: umkm?.name, umkm_id: umkm?.id }
     })
@@ -98,17 +113,22 @@ export default function AdminPengguna() {
 
   // ── Buka modal buat pengguna ────────────────────────────────────────────
   const openCreate = () => {
-    resetCreate()
+    resetCreate({ role: 'umkm_user' })
     setModalOpen(true)
   }
 
   // ── Buka modal edit pengguna ────────────────────────────────────────────
   const openEdit = (u: UserWithUmkm) => {
+    // Proktor hanya boleh edit umkm_user / guest
+    if (isProktor && !proktorCanEdit(u.role)) {
+      toast.error('Proktor tidak memiliki izin untuk mengedit akun ini.')
+      return
+    }
     setEditTarget(u)
     resetEdit({
-      email: u.email ?? '',
-      full_name: u.full_name ?? '',
-      role: (u.role as EditFormData['role']) ?? 'guest',
+      email:       u.email ?? '',
+      full_name:   u.full_name ?? '',
+      role:        (u.role as EditFormData['role']) ?? 'guest',
       newPassword: '',
     })
     setEditModalOpen(true)
@@ -120,8 +140,10 @@ export default function AdminPengguna() {
       toast.error('Service Role Key tidak dikonfigurasi. Hubungi developer.')
       return
     }
-    if (myRole === 'proktor' && data.role === 'super_admin') {
-      toast.error('Proktor tidak dapat membuat Super Admin')
+
+    // Proktor hanya boleh membuat umkm_user dan guest
+    if (isProktor && (data.role === 'super_admin' || data.role === 'proktor')) {
+      toast.error('Proktor hanya dapat membuat akun UMKM User atau Guest.')
       return
     }
     if (data.role === 'umkm_user' && !data.umkmName) {
@@ -131,7 +153,6 @@ export default function AdminPengguna() {
 
     setIsSubmitting(true)
     try {
-      // 1. Buat auth user
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email,
         password: data.password,
@@ -141,15 +162,11 @@ export default function AdminPengguna() {
 
       const userId = authData.user.id
 
-      // 2. Simpan ke user_profiles
       const { error: profileError } = await supabaseAdmin.from('user_profiles').upsert({
-        id: userId,
-        email: data.email,
-        role: data.role,
+        id: userId, email: data.email, role: data.role,
       })
       if (profileError) throw new Error(profileError.message)
 
-      // 3. Jika UMKM, buat profil UMKM
       if (data.role === 'umkm_user' && data.umkmName) {
         await supabaseAdmin.from('umkms').insert({
           user_id: userId,
@@ -172,27 +189,29 @@ export default function AdminPengguna() {
   // ── Submit: Edit pengguna ───────────────────────────────────────────────
   const onEditSubmit = async (data: EditFormData) => {
     if (!supabaseAdmin || !editTarget) return
-    if (myRole === 'proktor' && data.role === 'super_admin') {
-      toast.error('Proktor tidak dapat mengatur role Super Admin')
+
+    // Guard: proktor tidak boleh edit proktor/admin
+    if (isProktor && !proktorCanEdit(editTarget.role)) {
+      toast.error('Proktor tidak memiliki izin untuk mengedit akun ini.')
+      return
+    }
+    // Guard: proktor tidak boleh mengubah role ke admin/proktor
+    if (isProktor && (data.role === 'super_admin' || data.role === 'proktor')) {
+      toast.error('Proktor tidak dapat mengatur role Admin atau Proktor.')
       return
     }
 
     setIsSubmitting(true)
     try {
-      // 1. Update email & password di Supabase Auth (jika ada perubahan)
       const authUpdate: Record<string, string> = {}
       if (data.email !== editTarget.email) authUpdate.email = data.email
       if (data.newPassword && data.newPassword.length >= 6) authUpdate.password = data.newPassword
 
       if (Object.keys(authUpdate).length > 0) {
-        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(
-          editTarget.id,
-          authUpdate
-        )
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(editTarget.id, authUpdate)
         if (authErr) throw new Error(authErr.message)
       }
 
-      // 2. Update user_profiles
       const { error: profileErr } = await supabaseAdmin.from('user_profiles').update({
         email: data.email,
         full_name: data.full_name || null,
@@ -200,7 +219,6 @@ export default function AdminPengguna() {
       }).eq('id', editTarget.id)
       if (profileErr) throw new Error(profileErr.message)
 
-      // 3. Jika role berubah dari umkm_user ke lain → unlink UMKM (tidak hapus)
       if (editTarget.role === 'umkm_user' && data.role !== 'umkm_user' && editTarget.umkm_id) {
         await supabaseAdmin.from('umkms').update({ user_id: null }).eq('id', editTarget.umkm_id)
       }
@@ -221,19 +239,18 @@ export default function AdminPengguna() {
     e.preventDefault()
     if (!supabaseAdmin || !resetTarget) return
 
-    const formData = new FormData(e.currentTarget)
-    const newPassword = formData.get('new_password') as string
-
-    if (newPassword.length < 6) {
-      toast.error('Password minimal 6 karakter')
+    // Guard: proktor tidak boleh reset password proktor/admin
+    if (isProktor && !proktorCanEdit(resetTarget.role)) {
+      toast.error('Proktor tidak memiliki izin untuk mereset password akun ini.')
       return
     }
 
-    setIsSubmitting(true)
-    const { error } = await supabaseAdmin.auth.admin.updateUserById(resetTarget.id, {
-      password: newPassword,
-    })
+    const formData = new FormData(e.currentTarget)
+    const newPassword = formData.get('new_password') as string
+    if (newPassword.length < 6) { toast.error('Password minimal 6 karakter'); return }
 
+    setIsSubmitting(true)
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(resetTarget.id, { password: newPassword })
     if (error) {
       toast.error(`Gagal reset password: ${error.message}`)
     } else {
@@ -244,7 +261,7 @@ export default function AdminPengguna() {
     setIsSubmitting(false)
   }
 
-  // ── Hapus pengguna (TIDAK menghapus data UMKM) ─────────────────────────
+  // ── Hapus pengguna ──────────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return
 
@@ -253,31 +270,29 @@ export default function AdminPengguna() {
       return
     }
 
-    // Simpan referensi sebelum state berubah
-    const targetId    = deleteTarget.id
-    const targetEmail = deleteTarget.email
+    // Guard: proktor tidak boleh hapus proktor/admin
+    if (isProktor && !proktorCanEdit(deleteTarget.role)) {
+      toast.error('Proktor tidak memiliki izin untuk menghapus akun ini.')
+      setDeleteTarget(null)
+      return
+    }
+
+    const targetId     = deleteTarget.id
+    const targetEmail  = deleteTarget.email
     const targetUmkmId = deleteTarget.umkm_id
 
     setIsSubmitting(true)
-
     try {
-      // 1. Unlink user dari UMKM terlebih dahulu (data UMKM tetap aman)
       if (targetUmkmId) {
         const { error: unlinkErr } = await supabaseAdmin
-          .from('umkms')
-          .update({ user_id: null })
-          .eq('id', targetUmkmId)
+          .from('umkms').update({ user_id: null }).eq('id', targetUmkmId)
         if (unlinkErr) throw new Error(`Gagal unlink UMKM: ${unlinkErr.message}`)
       }
 
-      // 2. Hapus user_profiles
       const { error: profileErr } = await supabaseAdmin
-        .from('user_profiles')
-        .delete()
-        .eq('id', targetId)
+        .from('user_profiles').delete().eq('id', targetId)
       if (profileErr) throw new Error(`Gagal hapus profil: ${profileErr.message}`)
 
-      // 3. Hapus auth user
       const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(targetId)
       if (authErr) throw new Error(authErr.message)
 
@@ -294,11 +309,20 @@ export default function AdminPengguna() {
   // ── Helper: warna badge role ────────────────────────────────────────────
   const roleBadgeClass = (role: string) => {
     switch (role) {
-      case 'super_admin':  return 'bg-red-50 text-red-700'
-      case 'proktor':      return 'bg-blue-50 text-blue-700'
-      case 'umkm_user':    return 'bg-green-50 text-green-700'
-      default:             return 'bg-gray-100 text-gray-600'
+      case 'super_admin': return 'bg-red-50 text-red-700'
+      case 'proktor':     return 'bg-blue-50 text-blue-700'
+      case 'umkm_user':   return 'bg-green-50 text-green-700'
+      default:            return 'bg-gray-100 text-gray-600'
     }
+  }
+
+  // ── Cek apakah tombol aksi boleh ditampilkan untuk baris ini ────────────
+  // Proktor: akun proktor lain → readonly (tidak ada tombol aksi)
+  // Proktor: akun umkm/guest  → boleh semua aksi
+  const canAct = (u: UserWithUmkm) => {
+    if (isSuperAdmin) return true
+    if (isProktor)    return proktorCanEdit(u.role)
+    return false
   }
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -307,10 +331,29 @@ export default function AdminPengguna() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manajemen Pengguna</h1>
-          <p className="text-sm text-gray-500 mt-1">Kelola akun Admin, Proktor, dan UMKM.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            {isProktor
+              ? 'Anda dapat mengelola akun UMKM. Akun Administrator tidak ditampilkan.'
+              : 'Kelola akun Admin, Proktor, dan UMKM.'}
+          </p>
         </div>
         <Button onClick={openCreate} size="sm"><Plus size={16} /> Tambah Pengguna</Button>
       </div>
+
+      {/* Info banner untuk proktor */}
+      {isProktor && (
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-700">
+          <Lock size={16} className="mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">Akses terbatas sebagai Proktor</p>
+            <p className="text-xs mt-0.5 text-blue-600">
+              Anda dapat menambah dan mengelola akun <strong>UMKM User</strong> dan <strong>Guest</strong>.
+              Akun Proktor lain ditampilkan sebagai referensi namun tidak dapat diedit.
+              Akun Administrator tidak ditampilkan.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardBody className="p-0">
@@ -330,44 +373,59 @@ export default function AdminPengguna() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={u.id}
+                      className={`transition-colors ${canAct(u) ? 'hover:bg-gray-50' : 'opacity-60 bg-gray-50/50'}`}
+                    >
                       <td className="py-3 px-4">
                         <p className="font-medium text-gray-900">{u.email}</p>
                         {u.full_name && <p className="text-xs text-gray-500">{u.full_name}</p>}
                         {u.umkm_name && <p className="text-xs text-gray-400">Toko: {u.umkm_name}</p>}
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${roleBadgeClass(u.role)}`}>
-                          {u.role.replace('_', ' ').toUpperCase()}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${roleBadgeClass(u.role)}`}>
+                            {u.role.replace('_', ' ').toUpperCase()}
+                          </span>
+                          {/* Label readonly untuk proktor melihat proktor lain */}
+                          {isProktor && u.role === 'proktor' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-400 bg-gray-100">
+                              <Lock size={10} /> Hanya Lihat
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          {/* Edit */}
-                          <button
-                            onClick={() => openEdit(u)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600"
-                            title="Edit Pengguna"
-                          >
-                            <Pencil size={15} />
-                          </button>
-                          {/* Reset Password */}
-                          <button
-                            onClick={() => { setResetTarget(u); setResetModalOpen(true) }}
-                            className="p-1.5 rounded-lg text-gray-500 hover:bg-yellow-50 hover:text-yellow-600"
-                            title="Reset Password"
-                          >
-                            <KeyRound size={15} />
-                          </button>
-                          {/* Hapus */}
-                          <button
-                            onClick={() => setDeleteTarget(u)}
-                            className="p-1.5 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600"
-                            title="Hapus Pengguna"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
+                        {canAct(u) ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEdit(u)}
+                              className="p-1.5 rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600"
+                              title="Edit Pengguna"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              onClick={() => { setResetTarget(u); setResetModalOpen(true) }}
+                              className="p-1.5 rounded-lg text-gray-500 hover:bg-yellow-50 hover:text-yellow-600"
+                              title="Reset Password"
+                            >
+                              <KeyRound size={15} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(u)}
+                              className="p-1.5 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600"
+                              title="Hapus Pengguna"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        ) : (
+                          // Proktor melihat baris proktor lain → tampilkan icon kunci
+                          <span className="flex items-center gap-1 text-xs text-gray-400 px-1.5">
+                            <Lock size={13} /> Tidak dapat diedit
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -401,15 +459,22 @@ export default function AdminPengguna() {
               {...regCreate('role')}
               className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F] text-sm"
             >
+              {/* Proktor hanya bisa buat UMKM User dan Guest */}
               <option value="umkm_user">UMKM User</option>
               <option value="guest">Guest</option>
-              {myRole === 'super_admin' && (
+              {isSuperAdmin && (
                 <>
                   <option value="proktor">Proktor</option>
                   <option value="super_admin">Administrator</option>
                 </>
               )}
             </select>
+            {isProktor && (
+              <p className="text-xs text-gray-400 mt-1">
+                <Lock size={10} className="inline mr-1" />
+                Proktor hanya dapat membuat akun UMKM User dan Guest.
+              </p>
+            )}
           </div>
 
           {selectedCreateRole === 'umkm_user' && (
@@ -440,39 +505,35 @@ export default function AdminPengguna() {
         }
       >
         <form id="edit-user-form" onSubmit={handleEditSubmit(onEditSubmit)} className="space-y-4">
-          <Input
-            label="Email *"
-            type="email"
-            required
-            error={errEdit.email?.message}
-            {...regEdit('email')}
-          />
-          <Input
-            label="Nama Lengkap"
-            type="text"
-            error={errEdit.full_name?.message}
-            {...regEdit('full_name')}
-          />
+          <Input label="Email *" type="email" required error={errEdit.email?.message} {...regEdit('email')} />
+          <Input label="Nama Lengkap" type="text" error={errEdit.full_name?.message} {...regEdit('full_name')} />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Peran (Role) *</label>
             <select
               {...regEdit('role')}
-              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F] text-sm"
+              disabled={isProktor} // proktor tidak bisa ubah role
+              className="w-full px-4 py-2 bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D6A4F] text-sm disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
               <option value="umkm_user">UMKM User</option>
               <option value="guest">Guest</option>
-              {myRole === 'super_admin' && (
+              {isSuperAdmin && (
                 <>
                   <option value="proktor">Proktor</option>
                   <option value="super_admin">Administrator</option>
                 </>
               )}
             </select>
+            {isProktor && (
+              <p className="text-xs text-gray-400 mt-1">
+                <Lock size={10} className="inline mr-1" />
+                Proktor tidak dapat mengubah role pengguna.
+              </p>
+            )}
           </div>
 
           {/* Info jika mengubah role dari umkm_user */}
-          {editTarget?.role === 'umkm_user' && selectedEditRole !== 'umkm_user' && (
+          {isSuperAdmin && editTarget?.role === 'umkm_user' && selectedEditRole !== 'umkm_user' && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
               ⚠️ Mengubah role dari UMKM User akan melepas tautan ke toko <strong>{editTarget.umkm_name}</strong>, namun data toko tetap tersimpan.
             </div>
