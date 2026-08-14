@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [umkmCount, setUmkmCount] = useState<number>(0)
   const [umkmList, setUmkmList] = useState<{ id: string; name: string }[]>([])
+  const [profileName, setProfileName] = useState<string>('')
 
   // Computed Date Ranges
   const currentRange: DateRange = useMemo(() => {
@@ -147,6 +148,11 @@ export default function Dashboard() {
         .order('visit_date', { ascending: true })
         .limit(5)
 
+      // 8. User Profile Name
+      const profileQuery = user?.id
+        ? supabase.from('user_profiles').select('full_name').eq('id', user.id).maybeSingle()
+        : Promise.resolve({ data: null })
+
       // Run all queries in parallel
       const [
         { data: resData },
@@ -156,6 +162,7 @@ export default function Dashboard() {
         { data: prodData },
         { data: umkmsData, count: umkmsCount },
         { data: upcomingData },
+        { data: profileData },
       ] = await Promise.all([
         resQuery,
         prevResQuery,
@@ -164,6 +171,7 @@ export default function Dashboard() {
         prodQuery,
         umkmQuery,
         upcomingQuery,
+        profileQuery,
       ])
 
       setCurrentReservations(resData || [])
@@ -174,13 +182,16 @@ export default function Dashboard() {
       setUmkmList((umkmsData || []) as { id: string; name: string }[])
       setUmkmCount(umkmsCount || (umkmsData?.length || 0))
       setUpcomingReservations((upcomingData || []) as Reservation[])
+      if (profileData?.full_name) {
+        setProfileName(profileData.full_name)
+      }
     } catch (err) {
       console.error('Error loading dashboard analytics:', err)
     } finally {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }, [currentRange, previousRange, role, myUmkm])
+  }, [currentRange, previousRange, role, myUmkm, user?.id])
 
   useEffect(() => {
     fetchDashboardData(true)
@@ -263,7 +274,6 @@ export default function Dashboard() {
   const topUmkmItems: TopUmkmItem[] = useMemo(() => {
     const umkmMap: Record<string, { id: string; name: string; revenue: number; ordersCount: number }> = {}
 
-    // Initialize map from umkmList
     umkmList.forEach((u) => {
       umkmMap[u.id] = { id: u.id, name: u.name, revenue: 0, ordersCount: 0 }
     })
@@ -301,7 +311,6 @@ export default function Dashboard() {
       { id: string; name: string; image_url: string | null; umkm_name?: string; quantitySold: number; revenue: number; stock: number }
     > = {}
 
-    // Initialize with all active products
     allProducts.forEach((p) => {
       prodMap[p.id] = {
         id: p.id,
@@ -314,7 +323,6 @@ export default function Dashboard() {
       }
     })
 
-    // Accumulate sales from current period transactions
     currentTransactions.forEach((t) => {
       if (t.status === 'cancelled' || t.status === 'failed') return
       t.items?.forEach((item: any) => {
@@ -328,7 +336,6 @@ export default function Dashboard() {
       })
     })
 
-    // If no transactions in period, fallback to lifetime sold_count for demonstration
     const hasPeriodSales = Object.values(prodMap).some((p) => p.quantitySold > 0)
     if (!hasPeriodSales) {
       allProducts.forEach((p) => {
@@ -342,7 +349,7 @@ export default function Dashboard() {
     const totalSold = Object.values(prodMap).reduce((sum, p) => sum + p.quantitySold, 0) || 1
     return Object.values(prodMap)
       .sort((a, b) => b.quantitySold - a.quantitySold)
-      .slice(0, 10)
+      .slice(0, 5)
       .map((p) => ({
         ...p,
         percentage: Math.round((p.quantitySold / totalSold) * 100),
@@ -397,31 +404,29 @@ export default function Dashboard() {
   const recentActivities: ActivityItem[] = useMemo(() => {
     const list: ActivityItem[] = []
 
-    // Add recent transactions
-    currentTransactions.slice(0, 4).forEach((t) => {
+    currentTransactions.slice(0, 3).forEach((t) => {
       list.push({
         id: `trx-${t.id}`,
         type: 'order',
-        title: `Pesanan Baru: ${t.customer_name || 'Pembeli Offline'}`,
-        subtitle: `Total transaksi Rp ${(t.total_amount || 0).toLocaleString('id-ID')} (${t.items?.length || 1} produk)`,
+        title: `Pesanan: ${t.customer_name || 'Pembeli Offline'}`,
+        subtitle: `Rp ${(t.total_amount || 0).toLocaleString('id-ID')} (${t.items?.length || 1} produk)`,
         timestamp: t.created_at || t.transaction_date,
       })
     })
 
-    // Add recent reservations
-    upcomingReservations.slice(0, 4).forEach((r) => {
+    upcomingReservations.slice(0, 3).forEach((r) => {
       list.push({
         id: `res-${r.id}`,
         type: 'reservation',
-        title: `Kunjungan: ${r.institution || r.name}`,
-        subtitle: `Rombongan ${r.num_visitors} orang • Status: ${r.status}`,
+        title: `Reservasi: ${r.institution || r.name}`,
+        subtitle: `${r.num_visitors} orang • Status: ${r.status}`,
         timestamp: r.created_at || r.visit_date,
       })
     })
 
     return list
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 6)
+      .slice(0, 5)
   }, [currentTransactions, upcomingReservations])
 
   // 9. Business Insights
@@ -447,13 +452,23 @@ export default function Dashboard() {
     })
   }, [kpiData, topProductItems, topUmkmItems, lowStockProducts.length, visitorDemographics, currentRange.label])
 
-  const displayName = myUmkm?.name || (user?.email?.split('@')[0] ? user.email.split('@')[0].toUpperCase() : 'Admin')
+  // Clean formatted user display name
+  const formattedDisplayName = useMemo(() => {
+    if (profileName) return profileName
+    if (myUmkm?.name) return myUmkm.name
+    if (user?.email) {
+      const namePart = user.email.split('@')[0]
+      // convert 'ratioonline' to 'Ratio Online'
+      return namePart.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    }
+    return 'Admin'
+  }, [profileName, myUmkm?.name, user?.email])
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* ── SECTION 1: HEADER & PERIOD FILTER ── */}
+    <div className="space-y-4 sm:space-y-5 pb-12">
+      {/* ── ROW 1: HEADER & PERIOD FILTER ── */}
       <DashboardHeader
-        userName={displayName}
+        userName={formattedDisplayName}
         role={role}
         currentRange={currentRange}
         onSelectPreset={handleSelectPreset}
@@ -461,7 +476,7 @@ export default function Dashboard() {
         isRefreshing={isRefreshing}
       />
 
-      {/* ── SECTION 2: LEVEL 1 KPI / BUSINESS OVERVIEW ── */}
+      {/* ── ROW 2: LEVEL 1 HERO KPI & BUSINESS OVERVIEW ── */}
       <KpiOverview
         data={kpiData}
         growth={kpiGrowth}
@@ -469,9 +484,8 @@ export default function Dashboard() {
         loading={loading}
       />
 
-      {/* ── SECTION 3: LEVEL 2 & 3 - MAIN TREND CHART & BUSINESS INSIGHTS ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Main interactive chart (8 cols) */}
+      {/* ── ROW 3: TREN BISNIS (8 cols) & KUNJUNGAN TERDEKAT (4 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-8">
           <BusinessTrendChart
             data={trendData}
@@ -480,64 +494,74 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Business Insights (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col justify-between">
-          <BusinessInsights
-            insights={businessInsights}
+        <div className="lg:col-span-4">
+          <UpcomingVisitsCard
+            reservations={upcomingReservations}
             loading={loading}
           />
         </div>
       </div>
 
-      {/* ── SECTION 4: LEVEL 3 & 4 - UPCOMING VISITS, TOP UMKM, TOP PRODUCTS ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Upcoming visits */}
-        <UpcomingVisitsCard
-          reservations={upcomingReservations}
-          loading={loading}
-        />
-
-        {/* Top Products */}
-        <TopProductsCard
-          items={topProductItems}
-          loading={loading}
-        />
-
-        {/* Top UMKM (Only shown for super_admin & proktor) */}
-        {role !== 'umkm_user' ? (
-          <TopUmkmCard
-            items={topUmkmItems}
+      {/* ── ROW 4: BUSINESS INSIGHTS (6 cols) & LOW STOCK ALERT (6 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-6">
+          <BusinessInsights
+            insights={businessInsights}
             loading={loading}
           />
-        ) : (
+        </div>
+
+        <div className="lg:col-span-6">
           <LowStockAlertCard
             products={lowStockProducts}
             loading={loading}
           />
-        )}
+        </div>
       </div>
 
-      {/* ── SECTION 5: LEVEL 5 - VISITOR DEMOGRAPHICS, RECENT ACTIVITY, LOW STOCK ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Visitor Demographics Donut */}
-        <VisitorDemographicsCard
-          data={visitorDemographics}
-          totalVisitors={kpiData.visitors}
-          loading={loading}
-        />
+      {/* ── ROW 5: TOP UMKM (6 cols) & TOP PRODUCTS (6 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {role !== 'umkm_user' ? (
+          <div className="lg:col-span-6">
+            <TopUmkmCard
+              items={topUmkmItems}
+              loading={loading}
+            />
+          </div>
+        ) : (
+          <div className="lg:col-span-6">
+            <RecentActivityCard
+              activities={recentActivities}
+              loading={loading}
+            />
+          </div>
+        )}
 
-        {/* Recent Activities Live Feed */}
-        <RecentActivityCard
-          activities={recentActivities}
-          loading={loading}
-        />
-
-        {/* Low Stock Alert (if not already rendered in previous row) */}
-        {role !== 'umkm_user' && (
-          <LowStockAlertCard
-            products={lowStockProducts}
+        <div className="lg:col-span-6">
+          <TopProductsCard
+            items={topProductItems}
             loading={loading}
           />
+        </div>
+      </div>
+
+      {/* ── ROW 6: VISITOR DEMOGRAPHICS (6 cols) & RECENT ACTIVITIES (6 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-6">
+          <VisitorDemographicsCard
+            data={visitorDemographics}
+            totalVisitors={kpiData.visitors}
+            loading={loading}
+          />
+        </div>
+
+        {role !== 'umkm_user' && (
+          <div className="lg:col-span-6">
+            <RecentActivityCard
+              activities={recentActivities}
+              loading={loading}
+            />
+          </div>
         )}
       </div>
     </div>

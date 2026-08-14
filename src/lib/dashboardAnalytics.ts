@@ -148,10 +148,7 @@ export function getPreviousPeriod(currentRange: DateRange): PreviousDateRange {
   const { start, end, preset } = currentRange
 
   switch (preset) {
-    case 'today': {
-      const prev = subDays(start, 1)
-      return { start: startOfDay(prev), end: endOfDay(prev) }
-    }
+    case 'today':
     case 'yesterday': {
       const prev = subDays(start, 1)
       return { start: startOfDay(prev), end: endOfDay(prev) }
@@ -170,13 +167,7 @@ export function getPreviousPeriod(currentRange: DateRange): PreviousDateRange {
         end: endOfDay(subDays(end, duration)),
       }
     }
-    case 'thisWeek': {
-      const prevWeek = subWeeks(start, 1)
-      return {
-        start: startOfWeek(prevWeek, { weekStartsOn: 1 }),
-        end: endOfWeek(prevWeek, { weekStartsOn: 1 }),
-      }
-    }
+    case 'thisWeek':
     case 'lastWeek': {
       const prevWeek = subWeeks(start, 1)
       return {
@@ -184,13 +175,7 @@ export function getPreviousPeriod(currentRange: DateRange): PreviousDateRange {
         end: endOfWeek(prevWeek, { weekStartsOn: 1 }),
       }
     }
-    case 'thisMonth': {
-      const prevMonth = subMonths(start, 1)
-      return {
-        start: startOfMonth(prevMonth),
-        end: endOfMonth(prevMonth),
-      }
-    }
+    case 'thisMonth':
     case 'lastMonth': {
       const prevMonth = subMonths(start, 1)
       return {
@@ -218,7 +203,7 @@ export function getPreviousPeriod(currentRange: DateRange): PreviousDateRange {
 
 /**
  * Calculates percentage growth / decline between current and previous period.
- * Returns null if previous value is 0 or unavailable (to prevent fake NaN or Infinity).
+ * Returns hasData = false if previous value is 0 (to prevent fake/exaggerated alerts).
  */
 export function calculateGrowth(
   current: number,
@@ -242,19 +227,6 @@ export function calculateGrowth(
   }
 }
 
-/**
- * Checks if a date string is within a given date range
- */
-export function isDateInRange(dateString: string | null | undefined, range: { start: Date; end: Date }): boolean {
-  if (!dateString) return false
-  try {
-    const d = parseISO(dateString)
-    return isWithinInterval(d, { start: range.start, end: range.end })
-  } catch {
-    return false
-  }
-}
-
 export interface TrendChartPoint {
   key: string
   label: string
@@ -274,7 +246,7 @@ export function buildTrendData(
 ): TrendChartPoint[] {
   const diffDays = differenceInDays(range.end, range.start)
 
-  // 1. Single day (Today / Yesterday): Group by 3-hour blocks (00-03, 03-06, etc.)
+  // 1. Single day (Today / Yesterday): Group by 3-hour blocks
   if (diffDays <= 1) {
     const points: TrendChartPoint[] = []
     for (let hour = 6; hour <= 21; hour += 3) {
@@ -290,7 +262,6 @@ export function buildTrendData(
       })
     }
 
-    // Bucket reservations & transactions
     reservations.forEach((r) => {
       const d = parseISO(r.visit_date || r.created_at)
       const h = d.getHours()
@@ -394,6 +365,7 @@ export function buildTrendData(
 
 export interface BusinessInsightItem {
   id: string
+  category: 'Performance' | 'Best Seller' | 'Visitor' | 'Stock' | 'Trend'
   type: 'positive' | 'warning' | 'info' | 'highlight'
   icon: string
   title: string
@@ -402,7 +374,7 @@ export interface BusinessInsightItem {
 }
 
 /**
- * Dynamically generates actionable business insights purely from actual data
+ * Dynamically generates statistical and data-aware insights with threshold safeguards
  */
 export function generateBusinessInsights(params: {
   currentRevenue: number
@@ -421,12 +393,13 @@ export function generateBusinessInsights(params: {
   const revGrowth = calculateGrowth(params.currentRevenue, params.previousRevenue)
   const visGrowth = calculateGrowth(params.currentVisitors, params.previousVisitors)
 
-  // 1. Revenue Insight
+  // 1. REVENUE INSIGHT (Category: Performance)
   if (params.currentRevenue > 0) {
     if (revGrowth.hasData) {
       if (revGrowth.isPositive && revGrowth.percentage > 0) {
         insights.push({
           id: 'rev-growth',
+          category: 'Performance',
           type: 'positive',
           icon: 'TrendingUp',
           title: 'Pertumbuhan Pendapatan Positif',
@@ -436,83 +409,94 @@ export function generateBusinessInsights(params: {
       } else if (!revGrowth.isPositive && revGrowth.percentage > 0) {
         insights.push({
           id: 'rev-drop',
+          category: 'Performance',
           type: 'warning',
           icon: 'TrendingDown',
-          title: 'Penurunan Pendapatan',
-          description: `Pendapatan turun ${revGrowth.percentage}% dibanding periode sebelumnya. Evaluasi promosi produk UMKM.`,
+          title: 'Penurunan Omzet',
+          description: `Pendapatan tercatat melambat ${revGrowth.percentage}% dibanding periode lalu.`,
           badge: `-${revGrowth.percentage}%`,
         })
       }
     } else {
       insights.push({
         id: 'rev-active',
+        category: 'Performance',
         type: 'info',
         icon: 'DollarSign',
-        title: 'Aktivitas Transaksi Tercatat',
-        description: `Tercatat total ${params.currentOrders} transaksi penjualan dalam periode ${params.periodLabel}.`,
+        title: 'Aktivitas Penjualan',
+        description: `Tercatat ${params.currentOrders} transaksi penjualan dalam periode ${params.periodLabel}.`,
       })
     }
+  } else {
+    insights.push({
+      id: 'rev-none',
+      category: 'Performance',
+      type: 'info',
+      icon: 'Info',
+      title: 'Aktivitas Penjualan',
+      description: `Belum ada catatan transaksi pada periode ${params.periodLabel}.`,
+    })
   }
 
-  // 2. Visitor Insight
-  if (params.currentVisitors > 0) {
-    if (visGrowth.hasData && visGrowth.isPositive && visGrowth.percentage > 0) {
-      insights.push({
-        id: 'vis-growth',
-        type: 'positive',
-        icon: 'Users',
-        title: 'Lonjakan Pengunjung',
-        description: `Jumlah pengunjung reservasi meningkat ${visGrowth.percentage}% dibanding periode sebelumnya.`,
-        badge: `+${visGrowth.percentage}%`,
-      })
-    }
-
-    // Dominant Visitor Type
-    const topVisType = params.visitorTypes.sort((a, b) => b.count - a.count)[0]
-    if (topVisType && topVisType.percentage >= 35 && topVisType.count > 0) {
-      insights.push({
-        id: 'vis-segment',
-        type: 'highlight',
-        icon: 'Award',
-        title: `Segmen Utama: ${topVisType.name}`,
-        description: `Kategori ${topVisType.name} mendominasi ${topVisType.percentage}% dari total ${params.currentVisitors} pengunjung.`,
-        badge: `${topVisType.percentage}%`,
-      })
-    }
-  }
-
-  // 3. Top Product Insight
+  // 2. BEST SELLER PRODUCT INSIGHT (Category: Best Seller)
   if (params.topProduct && params.topProduct.quantity > 0) {
     insights.push({
       id: 'top-prod',
+      category: 'Best Seller',
       type: 'highlight',
       icon: 'Sparkles',
       title: 'Produk Terlaris',
-      description: `${params.topProduct.name} memimpin penjualan dengan ${params.topProduct.quantity} unit terjual.`,
-      badge: 'Best Seller',
+      description: `${params.topProduct.name} menjadi produk paling diminati (${params.topProduct.quantity} unit).`,
+      badge: 'Top Item',
     })
   }
 
-  // 4. Low Stock Alert Insight
+  // 3. VISITOR INSIGHT WITH THRESHOLD CHECK (Category: Visitor)
+  if (params.currentVisitors >= 10) {
+    // Only claim segment dominance if dataset has at least 10 visitors
+    const dominantType = params.visitorTypes.sort((a, b) => b.count - a.count)[0]
+    if (dominantType && dominantType.percentage >= 40 && dominantType.count > 0) {
+      insights.push({
+        id: 'vis-segment',
+        category: 'Visitor',
+        type: 'highlight',
+        icon: 'Users',
+        title: `Segmen Dominan: ${dominantType.name}`,
+        description: `Kategori ${dominantType.name} menyumbang ${dominantType.percentage}% dari total ${params.currentVisitors} pengunjung.`,
+        badge: `${dominantType.percentage}%`,
+      })
+    } else if (visGrowth.hasData && visGrowth.isPositive && visGrowth.percentage > 0) {
+      insights.push({
+        id: 'vis-growth',
+        category: 'Visitor',
+        type: 'positive',
+        icon: 'TrendingUp',
+        title: 'Kunjungan Meningkat',
+        description: `Pengunjung reservasi bertumbuh ${visGrowth.percentage}% dibanding periode sebelumnya.`,
+        badge: `+${visGrowth.percentage}%`,
+      })
+    }
+  } else if (params.currentVisitors > 0) {
+    insights.push({
+      id: 'vis-limited',
+      category: 'Visitor',
+      type: 'info',
+      icon: 'Users',
+      title: 'Data Pengunjung Awal',
+      description: `Tercatat ${params.currentVisitors} pengunjung pada periode ini. Data masih dalam tahap awal akumulasi.`,
+    })
+  }
+
+  // 4. LOW STOCK ALERT INSIGHT (Category: Stock)
   if (params.lowStockCount > 0) {
     insights.push({
       id: 'low-stock',
+      category: 'Stock',
       type: 'warning',
       icon: 'AlertTriangle',
       title: 'Perhatian Stok Menipis',
-      description: `Ada ${params.lowStockCount} produk yang stoknya menipis atau di bawah batas minimum.`,
+      description: `Terdapat ${params.lowStockCount} produk yang stoknya berada di bawah batas minimum.`,
       badge: `${params.lowStockCount} Produk`,
-    })
-  }
-
-  // Fallback if no specific insight
-  if (insights.length === 0) {
-    insights.push({
-      id: 'no-data',
-      type: 'info',
-      icon: 'Info',
-      title: 'Belum Ada Pola Signifikan',
-      description: `Data pada rentang ${params.periodLabel} masih berkembang. Insight otomatis akan diperbarui seiring pertambahan transaksi & reservasi.`,
     })
   }
 

@@ -1,7 +1,6 @@
 import { Zap, CalendarCheck, ShoppingBag, Package, FileText } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { id as idLocale } from 'date-fns/locale'
-import { formatCurrency } from '../../../lib/utils'
 
 export interface ActivityItem {
   id: string
@@ -21,26 +20,26 @@ export default function RecentActivityCard({ activities, loading }: RecentActivi
   const getIcon = (type: ActivityItem['type']) => {
     switch (type) {
       case 'reservation':
-        return <CalendarCheck size={14} className="text-blue-600" />
+        return <CalendarCheck size={13} className="text-blue-600" />
       case 'order':
-        return <ShoppingBag size={14} className="text-emerald-600" />
+        return <ShoppingBag size={13} className="text-emerald-600" />
       case 'product':
-        return <Package size={14} className="text-orange-600" />
+        return <Package size={13} className="text-orange-600" />
       case 'article':
-        return <FileText size={14} className="text-amber-600" />
+        return <FileText size={13} className="text-amber-600" />
     }
   }
 
   const getIconBg = (type: ActivityItem['type']) => {
     switch (type) {
       case 'reservation':
-        return 'bg-blue-50 border-blue-200/60'
+        return 'bg-blue-50 border-blue-200/50'
       case 'order':
-        return 'bg-emerald-50 border-emerald-200/60'
+        return 'bg-emerald-50 border-emerald-200/50'
       case 'product':
-        return 'bg-orange-50 border-orange-200/60'
+        return 'bg-orange-50 border-orange-200/50'
       case 'article':
-        return 'bg-amber-50 border-amber-200/60'
+        return 'bg-amber-50 border-amber-200/50'
     }
   }
 
@@ -54,11 +53,11 @@ export default function RecentActivityCard({ activities, loading }: RecentActivi
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-2xs space-y-3 animate-pulse">
+      <div className="bg-white rounded-2xl p-4.5 border border-gray-200/80 shadow-2xs space-y-3 animate-pulse h-full">
         <div className="h-4 w-32 bg-gray-200 rounded" />
-        <div className="space-y-3 pt-2">
+        <div className="space-y-2 pt-1">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-10 bg-gray-100 rounded-xl" />
+            <div key={i} className="h-9 bg-gray-100 rounded-xl" />
           ))}
         </div>
       </div>
@@ -66,30 +65,30 @@ export default function RecentActivityCard({ activities, loading }: RecentActivi
   }
 
   return (
-    <div className="bg-white rounded-2xl p-5 border border-gray-200/80 shadow-2xs flex flex-col justify-between">
+    <div className="bg-white rounded-2xl p-4.5 border border-gray-200/80 shadow-2xs flex flex-col justify-between h-full">
       <div>
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-amber-100 text-amber-800">
-              <Zap size={16} />
+        <div className="flex items-center justify-between pb-2.5 border-b border-gray-100">
+          <div className="flex items-center gap-1.5">
+            <div className="p-1.5 rounded-lg bg-amber-100/70 text-amber-800">
+              <Zap size={15} />
             </div>
             <div>
               <h2 className="text-sm font-bold text-gray-900">Aktivitas Terbaru</h2>
-              <p className="text-[11px] text-gray-400">Log transaksi & reservasi masuk</p>
+              <p className="text-[10px] text-gray-400">Log pesanan & reservasi masuk</p>
             </div>
           </div>
-          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Live Feed
+          <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60 flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+            Live
           </span>
         </div>
 
-        <div className="mt-3 divide-y divide-gray-100">
+        <div className="mt-2.5 divide-y divide-gray-100">
           {activities.length > 0 ? (
-            activities.map((act) => (
+            activities.slice(0, 4).map((act) => (
               <div
                 key={act.id}
-                className="py-2.5 first:pt-0 last:pb-0 flex items-start gap-2.5"
+                className="py-2 first:pt-0 last:pb-0 flex items-start gap-2"
               >
                 <div className={`p-1.5 rounded-lg border shrink-0 mt-0.5 ${getIconBg(act.type)}`}>
                   {getIcon(act.type)}
@@ -102,13 +101,13 @@ export default function RecentActivityCard({ activities, loading }: RecentActivi
                       {formatRelativeTime(act.timestamp)}
                     </span>
                   </div>
-                  <p className="text-[11px] text-gray-600 truncate mt-0.5">{act.subtitle}</p>
+                  <p className="text-[11px] text-gray-500 truncate">{act.subtitle}</p>
                 </div>
               </div>
             ))
           ) : (
-            <div className="py-8 text-center text-gray-400">
-              <Zap size={24} className="mx-auto mb-1 opacity-40" />
+            <div className="py-7 text-center text-gray-400">
+              <Zap size={20} className="mx-auto mb-1 opacity-40" />
               <p className="text-xs font-medium">Belum ada aktivitas terbaru yang tercatat</p>
             </div>
           )}
