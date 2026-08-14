@@ -142,7 +142,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400">
-          <p>© {new Date().getFullYear()} Kebun Kelulut Sangatta. Hak cipta dilindungi.</p>
+          <div className="text-center sm:text-left space-y-1">
+            <p>© {new Date().getFullYear()} Kebun-Kelulut · All Rights Reserved</p>
+            <p className="text-[11px] text-gray-400">Designed &amp; Developed by Rahmad Safi'i</p>
+          </div>
           <Link to="/admin" className="hover:text-white transition-colors">
             Admin Panel
           </Link>
