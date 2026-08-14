@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { CalendarCheck, Clock, Users, ArrowUpRight, CheckCircle2, AlertCircle, CheckCheck } from 'lucide-react'
+import { differenceInCalendarDays, parseISO, isToday, isTomorrow, format } from 'date-fns'
+import { id as idLocale } from 'date-fns/locale'
 import type { Reservation } from '../../../types/database'
-import { formatDate } from '../../../lib/utils'
 
 interface UpcomingVisitsCardProps {
   reservations: Reservation[]
@@ -9,33 +10,52 @@ interface UpcomingVisitsCardProps {
 }
 
 export default function UpcomingVisitsCard({ reservations, loading }: UpcomingVisitsCardProps) {
+  const getRelativeDayTag = (dateStr: string) => {
+    try {
+      const d = parseISO(dateStr)
+      if (isToday(d)) {
+        return { label: 'HARI INI', bg: 'bg-emerald-600 text-white font-black' }
+      }
+      if (isTomorrow(d)) {
+        return { label: 'BESOK', bg: 'bg-blue-600 text-white font-bold' }
+      }
+      const days = differenceInCalendarDays(d, new Date())
+      if (days > 1 && days <= 7) {
+        return { label: `${days} HARI LAGI`, bg: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold' }
+      }
+      return { label: format(d, 'd MMM', { locale: idLocale }), bg: 'bg-gray-100 text-gray-700 font-semibold' }
+    } catch {
+      return { label: 'JADWAL', bg: 'bg-gray-100 text-gray-700 font-semibold' }
+    }
+  }
+
   const getStatusBadge = (status: Reservation['status']) => {
     switch (status) {
       case 'confirmed':
         return (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 size={9} />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 size={8} />
             Dikonfirmasi
           </span>
         )
       case 'done':
         return (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-            <CheckCheck size={9} />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <CheckCheck size={8} />
             Selesai
           </span>
         )
       case 'cancelled':
         return (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-            Dibatalkan
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+            Batal
           </span>
         )
       case 'pending':
       default:
         return (
-          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            <AlertCircle size={9} />
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+            <AlertCircle size={8} />
             Menunggu
           </span>
         )
@@ -48,7 +68,7 @@ export default function UpcomingVisitsCard({ reservations, loading }: UpcomingVi
         <div className="h-4 w-32 bg-gray-200 rounded" />
         <div className="space-y-2 pt-1">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-12 bg-gray-100 rounded-xl" />
+            <div key={i} className="h-11 bg-gray-100 rounded-xl" />
           ))}
         </div>
       </div>
@@ -56,7 +76,7 @@ export default function UpcomingVisitsCard({ reservations, loading }: UpcomingVi
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4.5 border border-gray-200/80 shadow-2xs flex flex-col justify-between h-full">
+    <div className="bg-white rounded-2xl p-4 sm:p-4.5 border border-gray-200/80 shadow-2xs flex flex-col justify-between h-full">
       <div>
         <div className="flex items-center justify-between pb-2.5 border-b border-gray-100">
           <div className="flex items-center gap-1.5">
@@ -79,33 +99,40 @@ export default function UpcomingVisitsCard({ reservations, loading }: UpcomingVi
 
         <div className="mt-2.5 divide-y divide-gray-100">
           {reservations.length > 0 ? (
-            reservations.slice(0, 4).map((r) => (
-              <div
-                key={r.id}
-                className="py-2 first:pt-0 last:pb-0 flex items-center justify-between gap-2 group"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
-                    <Clock size={10} className="text-gray-400 shrink-0" />
-                    <span>{formatDate(r.visit_date)}</span>
+            reservations.slice(0, 5).map((r) => {
+              const tag = getRelativeDayTag(r.visit_date)
+              return (
+                <div
+                  key={r.id}
+                  className="py-2 first:pt-0 last:pb-0 flex items-center justify-between gap-2 group"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded tracking-wide ${tag.bg}`}>
+                        {tag.label}
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {format(parseISO(r.visit_date), 'd MMM yyyy', { locale: idLocale })}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-gray-900 truncate mt-1 group-hover:text-[#2D6A4F] transition-colors">
+                      {r.institution ? `${r.institution} (${r.name})` : r.name}
+                    </p>
                   </div>
-                  <p className="text-xs font-bold text-gray-900 truncate mt-0.5 group-hover:text-[#2D6A4F] transition-colors">
-                    {r.institution ? `${r.institution} (${r.name})` : r.name}
-                  </p>
-                </div>
 
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 font-mono">
-                    <Users size={11} className="text-gray-400" />
-                    {r.num_visitors} org
-                  </span>
-                  {getStatusBadge(r.status)}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-700 font-mono">
+                      <Users size={11} className="text-gray-400" />
+                      {r.num_visitors} org
+                    </span>
+                    {getStatusBadge(r.status)}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           ) : (
             <div className="py-7 text-center text-gray-400">
-              <p className="text-xs font-medium">Tidak ada kunjungan terjadwal</p>
+              <p className="text-xs font-medium">Tidak ada jadwal kunjungan terdekat</p>
               <Link
                 to="/admin/reservasi"
                 className="inline-block mt-1.5 text-[11px] font-semibold text-[#2D6A4F] hover:underline"

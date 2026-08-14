@@ -14,6 +14,7 @@ import type { Reservation, Product } from '../../types/database'
 
 // Dashboard Modular Components
 import DashboardHeader from '../../components/admin/dashboard/DashboardHeader'
+import TodaySummaryStrip from '../../components/admin/dashboard/TodaySummaryStrip'
 import KpiOverview, { type KpiData } from '../../components/admin/dashboard/KpiOverview'
 import BusinessTrendChart from '../../components/admin/dashboard/BusinessTrendChart'
 import BusinessInsights from '../../components/admin/dashboard/BusinessInsights'
@@ -39,6 +40,8 @@ export default function Dashboard() {
   const [currentTransactions, setCurrentTransactions] = useState<any[]>([])
   const [previousTransactions, setPreviousTransactions] = useState<any[]>([])
   const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([])
+  const [todayReservations, setTodayReservations] = useState<any[]>([])
+  const [todayTransactions, setTodayTransactions] = useState<any[]>([])
   const [allProducts, setAllProducts] = useState<Product[]>([])
   const [umkmCount, setUmkmCount] = useState<number>(0)
   const [umkmList, setUmkmList] = useState<{ id: string; name: string }[]>([])
@@ -59,6 +62,10 @@ export default function Dashboard() {
     setIsRefreshing(true)
 
     try {
+      const todayDateStr = new Date().toISOString().split('T')[0]
+      const todayStartIso = new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
+      const todayEndIso = new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+
       const startDateStr = currentRange.start.toISOString()
       const endDateStr = currentRange.end.toISOString()
       const startVisitDate = currentRange.start.toISOString().split('T')[0]
@@ -119,7 +126,22 @@ export default function Dashboard() {
         .gte('created_at', prevStartDateStr)
         .lte('created_at', prevEndDateStr)
 
-      // 5. Products (for stock alert, top products catalog)
+      // 5. Today's Reservations (for Today Summary)
+      let todayResQuery = supabase
+        .from('reservations')
+        .select('id, num_visitors, status')
+        .eq('visit_date', todayDateStr)
+        .neq('status', 'cancelled')
+
+      // 6. Today's Transactions (for Today Summary)
+      let todayTrxQuery = supabase
+        .from('transactions')
+        .select('id, total_amount, status')
+        .gte('created_at', todayStartIso)
+        .lte('created_at', todayEndIso)
+        .neq('status', 'cancelled')
+
+      // 7. Products (for stock alert, top products catalog)
       let prodQuery = supabase
         .from('products')
         .select('id, name, slug, price, stock, sold_count, image_url, minimum_stock, unit, status, umkm_id, umkm:umkms(name)')
@@ -129,26 +151,26 @@ export default function Dashboard() {
       if (role === 'umkm_user' && myUmkm) {
         trxQuery = trxQuery.eq('umkm_id', myUmkm.id)
         prevTrxQuery = prevTrxQuery.eq('umkm_id', myUmkm.id)
+        todayTrxQuery = todayTrxQuery.eq('umkm_id', myUmkm.id)
         prodQuery = prodQuery.eq('umkm_id', myUmkm.id)
       }
 
-      // 6. Active UMKM list (for super_admin/proktor)
+      // 8. Active UMKM list (for super_admin/proktor)
       const umkmQuery = supabase
         .from('umkms')
         .select('id, name')
         .eq('status', 'active')
 
-      // 7. Upcoming Reservations (from today onwards, max 5)
-      const todayStr = new Date().toISOString().split('T')[0]
+      // 9. Upcoming Reservations (from today onwards, max 5)
       const upcomingQuery = supabase
         .from('reservations')
         .select('id, name, email, phone, institution, visit_date, num_visitors, status, notes, created_at, program_id')
-        .gte('visit_date', todayStr)
+        .gte('visit_date', todayDateStr)
         .neq('status', 'cancelled')
         .order('visit_date', { ascending: true })
         .limit(5)
 
-      // 8. User Profile Name
+      // 10. User Profile Name
       const profileQuery = user?.id
         ? supabase.from('user_profiles').select('full_name').eq('id', user.id).maybeSingle()
         : Promise.resolve({ data: null })
@@ -159,6 +181,8 @@ export default function Dashboard() {
         { data: prevResData },
         { data: trxData },
         { data: prevTrxData },
+        { data: todayResData },
+        { data: todayTrxData },
         { data: prodData },
         { data: umkmsData, count: umkmsCount },
         { data: upcomingData },
@@ -168,6 +192,8 @@ export default function Dashboard() {
         prevResQuery,
         trxQuery,
         prevTrxQuery,
+        todayResQuery,
+        todayTrxQuery,
         prodQuery,
         umkmQuery,
         upcomingQuery,
@@ -178,6 +204,8 @@ export default function Dashboard() {
       setPreviousReservations(prevResData || [])
       setCurrentTransactions(trxData || [])
       setPreviousTransactions(prevTrxData || [])
+      setTodayReservations(todayResData || [])
+      setTodayTransactions(todayTrxData || [])
       setAllProducts((prodData || []) as Product[])
       setUmkmList((umkmsData || []) as { id: string; name: string }[])
       setUmkmCount(umkmsCount || (umkmsData?.length || 0))
@@ -400,11 +428,26 @@ export default function Dashboard() {
       .slice(0, 5)
   }, [allProducts])
 
-  // 8. Recent Activities Feed
+  // 8. Today Summary Metrics
+  const todaySummary = useMemo(() => {
+    const visits = todayReservations.length
+    const visitors = todayReservations.reduce((sum, r) => sum + (Number(r.num_visitors) || 0), 0)
+    const orders = todayTransactions.length
+    const lowStock = lowStockProducts.length
+
+    return {
+      todayVisitsCount: visits,
+      todayVisitorsCount: visitors,
+      todayOrdersCount: orders,
+      lowStockCount: lowStock,
+    }
+  }, [todayReservations, todayTransactions, lowStockProducts.length])
+
+  // 9. Recent Activities Feed (Chronological top 6)
   const recentActivities: ActivityItem[] = useMemo(() => {
     const list: ActivityItem[] = []
 
-    currentTransactions.slice(0, 3).forEach((t) => {
+    currentTransactions.slice(0, 4).forEach((t) => {
       list.push({
         id: `trx-${t.id}`,
         type: 'order',
@@ -414,7 +457,7 @@ export default function Dashboard() {
       })
     })
 
-    upcomingReservations.slice(0, 3).forEach((r) => {
+    upcomingReservations.slice(0, 4).forEach((r) => {
       list.push({
         id: `res-${r.id}`,
         type: 'reservation',
@@ -426,10 +469,10 @@ export default function Dashboard() {
 
     return list
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 5)
+      .slice(0, 6)
   }, [currentTransactions, upcomingReservations])
 
-  // 9. Business Insights
+  // 10. Business Insights Engine
   const businessInsights = useMemo(() => {
     const topProd = topProductItems[0]
       ? { name: topProductItems[0].name, quantity: topProductItems[0].quantitySold }
@@ -452,20 +495,19 @@ export default function Dashboard() {
     })
   }, [kpiData, topProductItems, topUmkmItems, lowStockProducts.length, visitorDemographics, currentRange.label])
 
-  // Clean formatted user display name
+  // Clean user display name
   const formattedDisplayName = useMemo(() => {
     if (profileName) return profileName
     if (myUmkm?.name) return myUmkm.name
     if (user?.email) {
       const namePart = user.email.split('@')[0]
-      // convert 'ratioonline' to 'Ratio Online'
       return namePart.replace(/[._-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     }
     return 'Admin'
   }, [profileName, myUmkm?.name, user?.email])
 
   return (
-    <div className="space-y-4 sm:space-y-5 pb-12">
+    <div className="space-y-3.5 sm:space-y-4 pb-12">
       {/* ── ROW 1: HEADER & PERIOD FILTER ── */}
       <DashboardHeader
         userName={formattedDisplayName}
@@ -476,7 +518,16 @@ export default function Dashboard() {
         isRefreshing={isRefreshing}
       />
 
-      {/* ── ROW 2: LEVEL 1 HERO KPI & BUSINESS OVERVIEW ── */}
+      {/* ── ROW 2: TODAY SUMMARY STRIP (NEW) ── */}
+      <TodaySummaryStrip
+        todayVisitsCount={todaySummary.todayVisitsCount}
+        todayVisitorsCount={todaySummary.todayVisitorsCount}
+        todayOrdersCount={todaySummary.todayOrdersCount}
+        lowStockCount={todaySummary.lowStockCount}
+        loading={loading}
+      />
+
+      {/* ── ROW 3: LEVEL 1 HERO KPI & BUSINESS OVERVIEW ── */}
       <KpiOverview
         data={kpiData}
         growth={kpiGrowth}
@@ -484,8 +535,8 @@ export default function Dashboard() {
         loading={loading}
       />
 
-      {/* ── ROW 3: TREN BISNIS (8 cols) & KUNJUNGAN TERDEKAT (4 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* ── ROW 4: TREN BISNIS (8 cols) & KUNJUNGAN TERDEKAT 2.0 (4 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4">
         <div className="lg:col-span-8">
           <BusinessTrendChart
             data={trendData}
@@ -502,8 +553,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── ROW 4: BUSINESS INSIGHTS (6 cols) & LOW STOCK ALERT (6 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* ── ROW 5: BUSINESS INSIGHTS (6 cols) & LOW STOCK ALERT (6 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4">
         <div className="lg:col-span-6">
           <BusinessInsights
             insights={businessInsights}
@@ -519,8 +570,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── ROW 5: TOP UMKM (6 cols) & TOP PRODUCTS (6 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* ── ROW 6: TOP UMKM (6 cols) & TOP PRODUCTS (6 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4">
         {role !== 'umkm_user' ? (
           <div className="lg:col-span-6">
             <TopUmkmCard
@@ -545,8 +596,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── ROW 6: VISITOR DEMOGRAPHICS (6 cols) & RECENT ACTIVITIES (6 cols) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* ── ROW 7: VISITOR ANALYTICS (6 cols) & RECENT ACTIVITIES (6 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-4">
         <div className="lg:col-span-6">
           <VisitorDemographicsCard
             data={visitorDemographics}

@@ -8,7 +8,7 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { Users, DollarSign, ShoppingBag, TrendingUp } from 'lucide-react'
+import { Users, DollarSign, ShoppingBag, TrendingUp, Info } from 'lucide-react'
 import type { TrendChartPoint } from '../../../lib/dashboardAnalytics'
 import { formatCurrency } from '../../../lib/utils'
 
@@ -61,8 +61,9 @@ export default function BusinessTrendChart({
   }
 
   const currentCfg = metricConfig[activeMetric]
-  const nonZeroPoints = data.filter((d) => d[activeMetric] > 0).length
-  const allZero = data.length === 0 || nonZeroPoints === 0
+  const nonZeroPoints = data.filter((d) => d[activeMetric] > 0)
+  const isLimitedData = nonZeroPoints.length < 5
+  const totalMetricValue = data.reduce((sum, d) => sum + d[activeMetric], 0)
 
   if (loading) {
     return (
@@ -71,14 +72,14 @@ export default function BusinessTrendChart({
           <div className="h-4 w-32 bg-gray-200 rounded" />
           <div className="h-7 w-44 bg-gray-200 rounded-lg" />
         </div>
-        <div className="h-56 bg-gray-100 rounded-xl" />
+        <div className="h-60 bg-gray-100 rounded-xl" />
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4.5 border border-gray-200/80 shadow-2xs flex flex-col justify-between h-full">
-      {/* Header & Metric Switcher (Compact) */}
+    <div className="bg-white rounded-2xl p-4 sm:p-4.5 border border-gray-200/80 shadow-2xs flex flex-col justify-between h-full">
+      {/* Header & Metric Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
         <div>
           <div className="flex items-center gap-1.5">
@@ -89,12 +90,11 @@ export default function BusinessTrendChart({
           </div>
           <p className="text-[11px] text-gray-400 mt-0.5">
             Rentang: <span className="font-semibold text-gray-600">{periodLabel}</span>
-            {nonZeroPoints > 0 && ` • ${nonZeroPoints} titik data aktif`}
           </p>
         </div>
 
-        {/* Metric Pill Selector */}
-        <div className="flex items-center bg-gray-100/90 p-0.5 rounded-xl gap-0.5 self-start sm:self-auto border border-gray-200/60">
+        {/* Metric Switcher Pills */}
+        <div className="flex items-center bg-gray-100 p-0.5 rounded-xl gap-0.5 self-start sm:self-auto border border-gray-200/60">
           {(['Pengunjung', 'Pendapatan', 'Pesanan'] as MetricKey[]).map((key) => {
             const isSelected = activeMetric === key
             const Icon = metricConfig[key].icon
@@ -120,8 +120,8 @@ export default function BusinessTrendChart({
         </div>
       </div>
 
-      {/* Chart Area (Tinggi dikurangi ke 240px agar compact) */}
-      <div className="h-60 w-full relative">
+      {/* Chart Area - Adaptive Height: 260-280px desktop, 220px tablet, 190px mobile */}
+      <div className="h-52 sm:h-60 md:h-64 w-full relative">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
             <defs>
@@ -179,7 +179,7 @@ export default function BusinessTrendChart({
                           <span className="w-1.5 h-1.5 rounded-full bg-[#2D6A4F]" />
                           Pengunjung:
                         </span>
-                        <span className="font-bold text-gray-900">
+                        <span className="font-bold text-gray-900 font-mono">
                           {pt.Pengunjung.toLocaleString('id-ID')} org
                         </span>
                       </div>
@@ -188,7 +188,7 @@ export default function BusinessTrendChart({
                           <span className="w-1.5 h-1.5 rounded-full bg-[#F5A623]" />
                           Pendapatan:
                         </span>
-                        <span className="font-bold text-emerald-800">
+                        <span className="font-bold text-emerald-800 font-mono">
                           {formatCurrency(pt.Pendapatan)}
                         </span>
                       </div>
@@ -197,7 +197,7 @@ export default function BusinessTrendChart({
                           <span className="w-1.5 h-1.5 rounded-full bg-[#3B82F6]" />
                           Pesanan:
                         </span>
-                        <span className="font-bold text-gray-900">
+                        <span className="font-bold text-gray-900 font-mono">
                           {pt.Pesanan} trx
                         </span>
                       </div>
@@ -220,15 +220,20 @@ export default function BusinessTrendChart({
           </AreaChart>
         </ResponsiveContainer>
 
-        {allZero && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[1px] rounded-xl pointer-events-none">
-            <div className="text-center p-3">
-              <p className="text-xs font-semibold text-gray-600">
-                Belum ada data {currentCfg.label.toLowerCase()} pada rentang ini
-              </p>
-              <p className="text-[10px] text-gray-400 mt-0.5">
-                Grafik akan otomatis memetakan tren saat ada transaksi atau kunjungan
-              </p>
+        {/* Adaptive Limited Data Overlay */}
+        {isLimitedData && (
+          <div className="absolute inset-x-0 bottom-2 flex justify-center pointer-events-none">
+            <div className="bg-white/90 backdrop-blur-xs border border-gray-200/80 rounded-xl px-3 py-1.5 shadow-xs flex items-center gap-2 text-[11px] text-gray-600">
+              <Info size={13} className="text-[#2D6A4F] shrink-0" />
+              <span>
+                {totalMetricValue > 0
+                  ? `Data masih terbatas (${nonZeroPoints.length} titik aktif: ${
+                      activeMetric === 'Pendapatan'
+                        ? formatCurrency(totalMetricValue)
+                        : `${totalMetricValue} ${currentCfg.unit}`
+                    })`
+                  : `Belum ada catatan ${currentCfg.label.toLowerCase()} pada rentang ${periodLabel}`}
+              </span>
             </div>
           </div>
         )}
