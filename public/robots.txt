@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /program
+Allow: /produk
+Allow: /umkm-directory
+Allow: /umkm/
+Allow: /artikel
+Allow: /galeri
+Allow: /kontak
+Allow: /reservasi
+
+# Disallow Admin & Private Authenticated Endpoints
+Disallow: /admin/
+Disallow: /admin
+Disallow: /login
+
+Sitemap: https://kebunkelulut.my.id/sitemap.xml

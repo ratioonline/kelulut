@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { HelmetProvider } from 'react-helmet-async'
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { HelmetProvider, Helmet } from 'react-helmet-async'
 import { Toaster } from 'react-hot-toast'
 
 // Layout
@@ -104,17 +104,25 @@ function AppRoutes() {
 
 function NotFound() {
   return (
-    <div className="min-h-screen bg-[#FAF3E0] flex flex-col items-center justify-center text-center px-4">
-      <p className="text-8xl mb-4">🐝</p>
-      <h1 className="text-4xl font-bold text-[#1B4332] mb-2">404</h1>
-      <p className="text-gray-600 mb-6">Halaman yang kamu cari tidak ditemukan.</p>
-      <a
-        href="/"
-        className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white font-semibold px-6 py-3 rounded-xl transition-colors"
-      >
-        Kembali ke Beranda
-      </a>
-    </div>
+    <>
+      <Helmet>
+        <title>404 - Halaman Tidak Ditemukan | Kebun Kelulut Sangatta</title>
+        <meta name="robots" content="noindex, follow" />
+      </Helmet>
+      <div className="min-h-screen bg-[#FAF3E0] flex flex-col items-center justify-center text-center px-4 py-16">
+        <p className="text-7xl mb-3">🐝</p>
+        <h1 className="text-3xl sm:text-4xl font-black text-[#1B4332] mb-2">404 - Halaman Tidak Ditemukan</h1>
+        <p className="text-gray-600 text-sm max-w-md mx-auto mb-6">
+          Maaf, halaman yang Anda tuju tidak ditemukan atau telah dipindahkan.
+        </p>
+        <Link
+          to="/"
+          className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-colors shadow-sm"
+        >
+          Kembali ke Beranda
+        </Link>
+      </div>
+    </>
   )
 }
 

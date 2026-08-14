@@ -18,15 +18,8 @@ export const supabase = createClient<Database>(
   supabaseAnonKey || 'placeholder-key'
 )
 
-// Admin client using service role key (only for specific admin operations)
-// Note: Normally this shouldn't be in the client bundle, but used for rapid prototyping
-if (!supabaseServiceKey) {
-  console.error('[Supabase] VITE_SUPABASE_SERVICE_ROLE_KEY tidak ditemukan!')
-} else {
-  console.log('[Supabase] Service Role Key loaded, length:', supabaseServiceKey.length)
-}
-
-export const supabaseAdmin = supabaseServiceKey 
+// Admin client using service role key (only for specific admin operations if available)
+export const supabaseAdmin = (supabaseServiceKey && supabaseUrl) 
   ? createClient<Database>(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
