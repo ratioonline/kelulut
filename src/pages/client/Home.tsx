@@ -168,7 +168,7 @@ export default function Home() {
             </div>
             <div className="relative">
               <img
-                src={org?.about_image_url ?? 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=700&q=80'}
+                src={org?.about_image_url ?? 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=700&q=80'}
                 alt={org?.name ?? 'Kebun Kelulut Sangatta'}
                 className="rounded-2xl shadow-xl w-full object-cover aspect-[4/3]"
               />
