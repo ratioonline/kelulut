@@ -1,296 +1,544 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { CalendarCheck, ShoppingBag, FileText, Images, TrendingUp, Clock, AlertTriangle, Users, Store, DollarSign } from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuthStore } from '../../stores/authStore'
-import { formatCurrency, formatDate } from '../../lib/utils'
-import { StatusBadge } from '../../components/ui/Badge'
-import { Card, CardBody } from '../../components/ui/Card'
-import LoadingSpinner from '../../components/ui/LoadingSpinner'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts'
+import {
+  getDateRangeFromPreset,
+  getPreviousPeriod,
+  calculateGrowth,
+  buildTrendData,
+  generateBusinessInsights,
+  type PeriodPreset,
+  type DateRange,
+} from '../../lib/dashboardAnalytics'
 import type { Reservation, Product } from '../../types/database'
 
-const COLORS = ['#2D6A4F', '#F5A623', '#4A90E2', '#E74C3C', '#9B59B6', '#34495E']
+// Dashboard Modular Components
+import DashboardHeader from '../../components/admin/dashboard/DashboardHeader'
+import KpiOverview, { type KpiData } from '../../components/admin/dashboard/KpiOverview'
+import BusinessTrendChart from '../../components/admin/dashboard/BusinessTrendChart'
+import BusinessInsights from '../../components/admin/dashboard/BusinessInsights'
+import UpcomingVisitsCard from '../../components/admin/dashboard/UpcomingVisitsCard'
+import TopUmkmCard, { type TopUmkmItem } from '../../components/admin/dashboard/TopUmkmCard'
+import TopProductsCard, { type TopProductItem } from '../../components/admin/dashboard/TopProductsCard'
+import VisitorDemographicsCard, { type VisitorTypeStat } from '../../components/admin/dashboard/VisitorDemographicsCard'
+import RecentActivityCard, { type ActivityItem } from '../../components/admin/dashboard/RecentActivityCard'
+import LowStockAlertCard from '../../components/admin/dashboard/LowStockAlertCard'
 
 export default function Dashboard() {
+  const { role, myUmkm, user } = useAuthStore()
+
+  // State: Date Filtering
+  const [selectedPreset, setSelectedPreset] = useState<PeriodPreset>('30days')
+  const [customRangeDates, setCustomRangeDates] = useState<{ start?: Date; end?: Date }>({})
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState<any>(null)
-  const [recentReservations, setRecentReservations] = useState<Reservation[]>([])
-  const [topProducts, setTopProducts] = useState<Product[]>([])
-  const [salesData, setSalesData] = useState<any[]>([])
-  const [visitTypes, setVisitTypes] = useState<any[]>([])
-  const { role, myUmkm } = useAuthStore()
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      // Basic metrics
-      let umkmQuery = supabase.from('umkms').select('*', { count: 'exact', head: true }).eq('status', 'active')
-      let resQuery = supabase.from('reservations').select('*')
-      let trxQuery = supabase.from('transactions').select('*, items:transaction_items(*, product:products(name))')
-      let prodQuery = supabase.from('products').select('*').order('sold_count', { ascending: false }).limit(10)
+  // Raw fetched datasets
+  const [currentReservations, setCurrentReservations] = useState<any[]>([])
+  const [previousReservations, setPreviousReservations] = useState<any[]>([])
+  const [currentTransactions, setCurrentTransactions] = useState<any[]>([])
+  const [previousTransactions, setPreviousTransactions] = useState<any[]>([])
+  const [upcomingReservations, setUpcomingReservations] = useState<Reservation[]>([])
+  const [allProducts, setAllProducts] = useState<Product[]>([])
+  const [umkmCount, setUmkmCount] = useState<number>(0)
+  const [umkmList, setUmkmList] = useState<{ id: string; name: string }[]>([])
 
+  // Computed Date Ranges
+  const currentRange: DateRange = useMemo(() => {
+    return getDateRangeFromPreset(selectedPreset, customRangeDates.start, customRangeDates.end)
+  }, [selectedPreset, customRangeDates])
+
+  const previousRange = useMemo(() => {
+    return getPreviousPeriod(currentRange)
+  }, [currentRange])
+
+  // Data Fetching Function (Targeted & Parallelized)
+  const fetchDashboardData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    setIsRefreshing(true)
+
+    try {
+      const startDateStr = currentRange.start.toISOString()
+      const endDateStr = currentRange.end.toISOString()
+      const startVisitDate = currentRange.start.toISOString().split('T')[0]
+      const endVisitDate = currentRange.end.toISOString().split('T')[0]
+
+      const prevStartDateStr = previousRange.start.toISOString()
+      const prevEndDateStr = previousRange.end.toISOString()
+      const prevStartVisitDate = previousRange.start.toISOString().split('T')[0]
+      const prevEndVisitDate = previousRange.end.toISOString().split('T')[0]
+
+      // 1. Current Period Reservations
+      let resQuery = supabase
+        .from('reservations')
+        .select('id, name, email, phone, institution, visit_date, num_visitors, status, created_at')
+        .gte('visit_date', startVisitDate)
+        .lte('visit_date', endVisitDate)
+
+      // 2. Previous Period Reservations
+      let prevResQuery = supabase
+        .from('reservations')
+        .select('id, num_visitors, status, visit_date')
+        .gte('visit_date', prevStartVisitDate)
+        .lte('visit_date', prevEndVisitDate)
+
+      // 3. Current Period Transactions
+      let trxQuery = supabase
+        .from('transactions')
+        .select(`
+          id,
+          umkm_id,
+          total_amount,
+          status,
+          transaction_date,
+          customer_name,
+          created_at,
+          umkm:umkms(id, name),
+          items:transaction_items(
+            id,
+            quantity,
+            price_at_time,
+            product_id,
+            product:products(id, name, image_url, stock, category)
+          )
+        `)
+        .gte('created_at', startDateStr)
+        .lte('created_at', endDateStr)
+
+      // 4. Previous Period Transactions
+      let prevTrxQuery = supabase
+        .from('transactions')
+        .select(`
+          id,
+          total_amount,
+          status,
+          created_at,
+          items:transaction_items(quantity)
+        `)
+        .gte('created_at', prevStartDateStr)
+        .lte('created_at', prevEndDateStr)
+
+      // 5. Products (for stock alert, top products catalog)
+      let prodQuery = supabase
+        .from('products')
+        .select('id, name, slug, price, stock, sold_count, image_url, minimum_stock, unit, status, umkm_id, umkm:umkms(name)')
+        .eq('status', 'active')
+
+      // Filter by UMKM if role is umkm_user
       if (role === 'umkm_user' && myUmkm) {
         trxQuery = trxQuery.eq('umkm_id', myUmkm.id)
+        prevTrxQuery = prevTrxQuery.eq('umkm_id', myUmkm.id)
         prodQuery = prodQuery.eq('umkm_id', myUmkm.id)
       }
 
+      // 6. Active UMKM list (for super_admin/proktor)
+      const umkmQuery = supabase
+        .from('umkms')
+        .select('id, name')
+        .eq('status', 'active')
+
+      // 7. Upcoming Reservations (from today onwards, max 5)
+      const todayStr = new Date().toISOString().split('T')[0]
+      const upcomingQuery = supabase
+        .from('reservations')
+        .select('id, name, email, phone, institution, visit_date, num_visitors, status, notes, created_at, program_id')
+        .gte('visit_date', todayStr)
+        .neq('status', 'cancelled')
+        .order('visit_date', { ascending: true })
+        .limit(5)
+
+      // Run all queries in parallel
       const [
-        { count: umkmCount },
-        { data: reservations },
-        { data: transactions },
-        { data: topProds }
+        { data: resData },
+        { data: prevResData },
+        { data: trxData },
+        { data: prevTrxData },
+        { data: prodData },
+        { data: umkmsData, count: umkmsCount },
+        { data: upcomingData },
       ] = await Promise.all([
-        umkmQuery,
         resQuery,
+        prevResQuery,
         trxQuery,
-        prodQuery
+        prevTrxQuery,
+        prodQuery,
+        umkmQuery,
+        upcomingQuery,
       ])
 
-      // Aggregations
-      const totalVisits = reservations?.reduce((sum, r) => sum + (r.num_visitors || 0), 0) || 0
-      const totalRevenue = transactions?.reduce((sum, t) => sum + t.total_amount, 0) || 0
-      const totalOrders = transactions?.length || 0
-      const totalItemsSold = transactions?.reduce((sum, t) => {
-        return sum + (t.items?.reduce((s: number, i: any) => s + i.quantity, 0) || 0)
-      }, 0) || 0
+      setCurrentReservations(resData || [])
+      setPreviousReservations(prevResData || [])
+      setCurrentTransactions(trxData || [])
+      setPreviousTransactions(prevTrxData || [])
+      setAllProducts((prodData || []) as Product[])
+      setUmkmList((umkmsData || []) as { id: string; name: string }[])
+      setUmkmCount(umkmsCount || (umkmsData?.length || 0))
+      setUpcomingReservations((upcomingData || []) as Reservation[])
+    } catch (err) {
+      console.error('Error loading dashboard analytics:', err)
+    } finally {
+      setLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [currentRange, previousRange, role, myUmkm])
 
-      // Pie chart for visitor types (using 'type' if exists, else mock from names)
-      const vTypes: Record<string, number> = { 'Sekolah': 0, 'Instansi': 0, 'Umum': 0 }
-      reservations?.forEach(r => {
-        if (r.name.toLowerCase().includes('sd') || r.name.toLowerCase().includes('tk') || r.name.toLowerCase().includes('smp')) vTypes['Sekolah'] += r.num_visitors || 0
-        else if (r.name.toLowerCase().includes('pt') || r.name.toLowerCase().includes('dinas')) vTypes['Instansi'] += r.num_visitors || 0
-        else vTypes['Umum'] += r.num_visitors || 0
-      })
-      const visitData = Object.entries(vTypes).map(([name, value]) => ({ name, value })).filter(d => d.value > 0)
+  useEffect(() => {
+    fetchDashboardData(true)
+  }, [fetchDashboardData])
 
-      // ── Grafik batang: kunjungan per bulan (6 bulan terakhir) ──
-      const now = new Date()
-      const monthlyMap: Record<string, { kunjungan: number; rombongan: number }> = {}
+  // Handle Preset Changes from Header
+  const handleSelectPreset = (preset: PeriodPreset, customStart?: Date, customEnd?: Date) => {
+    if (preset === 'custom' && customStart && customEnd) {
+      setCustomRangeDates({ start: customStart, end: customEnd })
+    }
+    setSelectedPreset(preset)
+  }
 
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-        const key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
-        monthlyMap[key] = { kunjungan: 0, rombongan: 0 }
+  // ── AGGREGATION & DERIVED ANALYTICS ──
+
+  // 1. KPI Stats
+  const kpiData: KpiData = useMemo(() => {
+    const validCurrentTrx = currentTransactions.filter((t) => t.status !== 'cancelled' && t.status !== 'failed')
+    const validPrevTrx = previousTransactions.filter((t) => t.status !== 'cancelled' && t.status !== 'failed')
+
+    const revenue = validCurrentTrx.reduce((sum, t) => sum + (Number(t.total_amount) || 0), 0)
+    const previousRevenue = validPrevTrx.reduce((sum, t) => sum + (Number(t.total_amount) || 0), 0)
+
+    const validCurrentRes = currentReservations.filter((r) => r.status !== 'cancelled')
+    const validPrevRes = previousReservations.filter((r) => r.status !== 'cancelled')
+
+    const visitors = validCurrentRes.reduce((sum, r) => sum + (Number(r.num_visitors) || 0), 0)
+    const previousVisitors = validPrevRes.reduce((sum, r) => sum + (Number(r.num_visitors) || 0), 0)
+
+    const orders = validCurrentTrx.length
+    const previousOrders = validPrevTrx.length
+
+    const itemsSold = validCurrentTrx.reduce((sum, t) => {
+      const itemsCount = t.items?.reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0) || 0
+      return sum + itemsCount
+    }, 0)
+
+    const previousItemsSold = validPrevTrx.reduce((sum, t) => {
+      const itemsCount = t.items?.reduce((s: number, i: any) => s + (Number(i.quantity) || 0), 0) || 0
+      return sum + itemsCount
+    }, 0)
+
+    return {
+      revenue,
+      previousRevenue,
+      visitors,
+      previousVisitors,
+      orders,
+      previousOrders,
+      itemsSold,
+      previousItemsSold,
+      umkmCount,
+      productsCount: allProducts.length,
+    }
+  }, [
+    currentTransactions,
+    previousTransactions,
+    currentReservations,
+    previousReservations,
+    umkmCount,
+    allProducts.length,
+  ])
+
+  // 2. Growth Rates vs Previous Period
+  const kpiGrowth = useMemo(() => {
+    return {
+      revenue: calculateGrowth(kpiData.revenue, kpiData.previousRevenue),
+      visitors: calculateGrowth(kpiData.visitors, kpiData.previousVisitors),
+      orders: calculateGrowth(kpiData.orders, kpiData.previousOrders),
+      itemsSold: calculateGrowth(kpiData.itemsSold, kpiData.previousItemsSold),
+    }
+  }, [kpiData])
+
+  // 3. Trend Chart Time-Series Data
+  const trendData = useMemo(() => {
+    return buildTrendData(currentRange, currentReservations, currentTransactions)
+  }, [currentRange, currentReservations, currentTransactions])
+
+  // 4. Top UMKM Ranking
+  const topUmkmItems: TopUmkmItem[] = useMemo(() => {
+    const umkmMap: Record<string, { id: string; name: string; revenue: number; ordersCount: number }> = {}
+
+    // Initialize map from umkmList
+    umkmList.forEach((u) => {
+      umkmMap[u.id] = { id: u.id, name: u.name, revenue: 0, ordersCount: 0 }
+    })
+
+    currentTransactions.forEach((t) => {
+      if (t.status === 'cancelled' || t.status === 'failed') return
+      const uId = t.umkm_id || t.umkm?.id
+      const uName = t.umkm?.name || 'Kebun Kelulut Pusat'
+      if (uId) {
+        if (!umkmMap[uId]) {
+          umkmMap[uId] = { id: uId, name: uName, revenue: 0, ordersCount: 0 }
+        }
+        umkmMap[uId].revenue += Number(t.total_amount) || 0
+        umkmMap[uId].ordersCount += 1
       }
+    })
 
-      reservations?.forEach(r => {
-        const d = new Date(r.visit_date)
-        const key = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' })
-        if (monthlyMap[key] !== undefined) {
-          monthlyMap[key].kunjungan  += r.num_visitors || 0
-          monthlyMap[key].rombongan  += 1
+    const totalRev = kpiData.revenue || 1
+    return Object.values(umkmMap)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5)
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        revenue: u.revenue,
+        ordersCount: u.ordersCount,
+        percentage: Math.round((u.revenue / totalRev) * 100),
+      }))
+  }, [umkmList, currentTransactions, kpiData.revenue])
+
+  // 5. Top Products Ranking
+  const topProductItems: TopProductItem[] = useMemo(() => {
+    const prodMap: Record<
+      string,
+      { id: string; name: string; image_url: string | null; umkm_name?: string; quantitySold: number; revenue: number; stock: number }
+    > = {}
+
+    // Initialize with all active products
+    allProducts.forEach((p) => {
+      prodMap[p.id] = {
+        id: p.id,
+        name: p.name,
+        image_url: p.image_url,
+        umkm_name: (p as any).umkm?.name,
+        quantitySold: 0,
+        revenue: 0,
+        stock: p.stock,
+      }
+    })
+
+    // Accumulate sales from current period transactions
+    currentTransactions.forEach((t) => {
+      if (t.status === 'cancelled' || t.status === 'failed') return
+      t.items?.forEach((item: any) => {
+        const pId = item.product_id || item.product?.id
+        if (pId && prodMap[pId]) {
+          const qty = Number(item.quantity) || 0
+          const price = Number(item.price_at_time) || 0
+          prodMap[pId].quantitySold += qty
+          prodMap[pId].revenue += qty * price
         }
       })
+    })
 
-      const barData = Object.entries(monthlyMap).map(([name, v]) => ({
-        name,
-        Pengunjung: v.kunjungan,
-        Rombongan: v.rombongan,
-      }))
-
-      // Filter and sort for upcoming reservations
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      
-      const upcomingReservations = (reservations || [])
-        .filter(r => {
-          const visitDate = new Date(r.visit_date)
-          visitDate.setHours(0, 0, 0, 0)
-          // Filter status yang bukan rejected/cancelled (asumsi: pending, approved, completed masih relevan, atau hanya approved)
-          return visitDate.getTime() >= today.getTime()
-        })
-        .sort((a, b) => new Date(a.visit_date).getTime() - new Date(b.visit_date).getTime())
-
-      setStats({ totalVisits, totalRevenue, totalOrders, totalItemsSold, umkmCount })
-      setRecentReservations(upcomingReservations.slice(0, 5))
-      setTopProducts((topProds || []) as Product[])
-      setVisitTypes(visitData)
-      setSalesData(barData)
-      setLoading(false)
+    // If no transactions in period, fallback to lifetime sold_count for demonstration
+    const hasPeriodSales = Object.values(prodMap).some((p) => p.quantitySold > 0)
+    if (!hasPeriodSales) {
+      allProducts.forEach((p) => {
+        if (prodMap[p.id]) {
+          prodMap[p.id].quantitySold = p.sold_count || 0
+          prodMap[p.id].revenue = (p.sold_count || 0) * (p.price || 0)
+        }
+      })
     }
-    fetchAll()
-  }, [role, myUmkm])
 
-  if (loading) return <div className="flex justify-center py-20"><LoadingSpinner size="lg" /></div>
+    const totalSold = Object.values(prodMap).reduce((sum, p) => sum + p.quantitySold, 0) || 1
+    return Object.values(prodMap)
+      .sort((a, b) => b.quantitySold - a.quantitySold)
+      .slice(0, 10)
+      .map((p) => ({
+        ...p,
+        percentage: Math.round((p.quantitySold / totalSold) * 100),
+      }))
+  }, [allProducts, currentTransactions])
+
+  // 6. Visitor Demographics
+  const visitorDemographics: VisitorTypeStat[] = useMemo(() => {
+    const counts: Record<string, number> = {
+      Sekolah: 0,
+      Instansi: 0,
+      Perusahaan: 0,
+      Komunitas: 0,
+      Umum: 0,
+    }
+
+    currentReservations.forEach((r) => {
+      if (r.status === 'cancelled') return
+      const text = `${r.name || ''} ${r.institution || ''}`.toLowerCase()
+      const visitors = Number(r.num_visitors) || 0
+
+      if (text.includes('sd') || text.includes('tk') || text.includes('smp') || text.includes('sma') || text.includes('smk') || text.includes('universitas') || text.includes('kampus') || text.includes('sekolah') || text.includes('paud')) {
+        counts['Sekolah'] += visitors
+      } else if (text.includes('dinas') || text.includes('kementerian') || text.includes('kantor') || text.includes('kelurahan') || text.includes('kecamatan') || text.includes('desa') || text.includes('balai')) {
+        counts['Instansi'] += visitors
+      } else if (text.includes('pt') || text.includes('cv') || text.includes('corp') || text.includes('perusahaan') || text.includes('tbk') || text.includes('ltd')) {
+        counts['Perusahaan'] += visitors
+      } else if (text.includes('komunitas') || text.includes('klub') || text.includes('paguyuban') || text.includes('organisasi') || text.includes('rombongan')) {
+        counts['Komunitas'] += visitors
+      } else {
+        counts['Umum'] += visitors
+      }
+    })
+
+    const total = Object.values(counts).reduce((s, c) => s + c, 0) || 1
+    return Object.entries(counts).map(([name, count]) => ({
+      name,
+      count,
+      percentage: Math.round((count / total) * 100),
+    }))
+  }, [currentReservations])
+
+  // 7. Low Stock Products
+  const lowStockProducts = useMemo(() => {
+    return allProducts
+      .filter((p) => p.stock <= (p.minimum_stock || 10))
+      .sort((a, b) => a.stock - b.stock)
+      .slice(0, 5)
+  }, [allProducts])
+
+  // 8. Recent Activities Feed
+  const recentActivities: ActivityItem[] = useMemo(() => {
+    const list: ActivityItem[] = []
+
+    // Add recent transactions
+    currentTransactions.slice(0, 4).forEach((t) => {
+      list.push({
+        id: `trx-${t.id}`,
+        type: 'order',
+        title: `Pesanan Baru: ${t.customer_name || 'Pembeli Offline'}`,
+        subtitle: `Total transaksi Rp ${(t.total_amount || 0).toLocaleString('id-ID')} (${t.items?.length || 1} produk)`,
+        timestamp: t.created_at || t.transaction_date,
+      })
+    })
+
+    // Add recent reservations
+    upcomingReservations.slice(0, 4).forEach((r) => {
+      list.push({
+        id: `res-${r.id}`,
+        type: 'reservation',
+        title: `Kunjungan: ${r.institution || r.name}`,
+        subtitle: `Rombongan ${r.num_visitors} orang • Status: ${r.status}`,
+        timestamp: r.created_at || r.visit_date,
+      })
+    })
+
+    return list
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 6)
+  }, [currentTransactions, upcomingReservations])
+
+  // 9. Business Insights
+  const businessInsights = useMemo(() => {
+    const topProd = topProductItems[0]
+      ? { name: topProductItems[0].name, quantity: topProductItems[0].quantitySold }
+      : undefined
+    const topU = topUmkmItems[0]
+      ? { name: topUmkmItems[0].name, revenue: topUmkmItems[0].revenue }
+      : undefined
+
+    return generateBusinessInsights({
+      currentRevenue: kpiData.revenue,
+      previousRevenue: kpiData.previousRevenue,
+      currentVisitors: kpiData.visitors,
+      previousVisitors: kpiData.previousVisitors,
+      currentOrders: kpiData.orders,
+      topProduct: topProd,
+      topUmkm: topU,
+      lowStockCount: lowStockProducts.length,
+      visitorTypes: visitorDemographics,
+      periodLabel: currentRange.label,
+    })
+  }, [kpiData, topProductItems, topUmkmItems, lowStockProducts.length, visitorDemographics, currentRange.label])
+
+  const displayName = myUmkm?.name || (user?.email?.split('@')[0] ? user.email.split('@')[0].toUpperCase() : 'Admin')
 
   return (
     <div className="space-y-6 pb-12">
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Statistik Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-1">Ringkasan kunjungan dan penjualan</p>
+      {/* ── SECTION 1: HEADER & PERIOD FILTER ── */}
+      <DashboardHeader
+        userName={displayName}
+        role={role}
+        currentRange={currentRange}
+        onSelectPreset={handleSelectPreset}
+        onRefresh={() => fetchDashboardData(false)}
+        isRefreshing={isRefreshing}
+      />
+
+      {/* ── SECTION 2: LEVEL 1 KPI / BUSINESS OVERVIEW ── */}
+      <KpiOverview
+        data={kpiData}
+        growth={kpiGrowth}
+        role={role}
+        loading={loading}
+      />
+
+      {/* ── SECTION 3: LEVEL 2 & 3 - MAIN TREND CHART & BUSINESS INSIGHTS ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Main interactive chart (8 cols) */}
+        <div className="lg:col-span-8">
+          <BusinessTrendChart
+            data={trendData}
+            periodLabel={currentRange.label}
+            loading={loading}
+          />
+        </div>
+
+        {/* Business Insights (4 cols) */}
+        <div className="lg:col-span-4 flex flex-col justify-between">
+          <BusinessInsights
+            insights={businessInsights}
+            loading={loading}
+          />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card hover><CardBody className="flex flex-col gap-2"><div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center"><Users size={20} className="text-white" /></div><div><p className="text-gray-500 text-xs font-semibold uppercase">Total Kunjungan</p><p className="text-2xl font-bold">{stats?.totalVisits}</p></div></CardBody></Card>
-        <Card hover><CardBody className="flex flex-col gap-2"><div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center"><DollarSign size={20} className="text-white" /></div><div><p className="text-gray-500 text-xs font-semibold uppercase">Total Pendapatan</p><p className="text-xl font-bold text-[#F5A623]">{formatCurrency(stats?.totalRevenue)}</p></div></CardBody></Card>
-        <Card hover><CardBody className="flex flex-col gap-2"><div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center"><ShoppingBag size={20} className="text-white" /></div><div><p className="text-gray-500 text-xs font-semibold uppercase">Total Pesanan</p><p className="text-2xl font-bold">{stats?.totalOrders}</p></div></CardBody></Card>
-        <Card hover><CardBody className="flex flex-col gap-2"><div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center"><FileText size={20} className="text-white" /></div><div><p className="text-gray-500 text-xs font-semibold uppercase">Total Produk Terjual</p><p className="text-2xl font-bold">{stats?.totalItemsSold}</p></div></CardBody></Card>
-        {(role === 'super_admin' || role === 'proktor') && (
-          <Card hover><CardBody className="flex flex-col gap-2"><div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center"><Store size={20} className="text-white" /></div><div><p className="text-gray-500 text-xs font-semibold uppercase">UMKM Aktif</p><p className="text-2xl font-bold">{stats?.umkmCount}</p></div></CardBody></Card>
+      {/* ── SECTION 4: LEVEL 3 & 4 - UPCOMING VISITS, TOP UMKM, TOP PRODUCTS ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Upcoming visits */}
+        <UpcomingVisitsCard
+          reservations={upcomingReservations}
+          loading={loading}
+        />
+
+        {/* Top Products */}
+        <TopProductsCard
+          items={topProductItems}
+          loading={loading}
+        />
+
+        {/* Top UMKM (Only shown for super_admin & proktor) */}
+        {role !== 'umkm_user' ? (
+          <TopUmkmCard
+            items={topUmkmItems}
+            loading={loading}
+          />
+        ) : (
+          <LowStockAlertCard
+            products={lowStockProducts}
+            loading={loading}
+          />
         )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardBody>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-sm font-bold text-gray-900">Statistik Pengunjung</h2>
-                <p className="text-xs text-gray-400 mt-0.5">6 bulan terakhir berdasarkan data reservasi</p>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-[#2D6A4F] inline-block" />
-                  Pengunjung
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-sm bg-[#F5A623] inline-block" />
-                  Rombongan
-                </span>
-              </div>
-            </div>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={salesData} barCategoryGap="30%" barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="name"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: '#6b7280' }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: '#6b7280' }}
-                    width={40}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    tick={{ fill: '#6b7280' }}
-                    width={30}
-                  />
-                  <RechartsTooltip
-                    cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-                    contentStyle={{
-                      borderRadius: '10px',
-                      border: '1px solid #e5e7eb',
-                      fontSize: '12px',
-                      boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                    }}
-                    formatter={(value: number, name: string) => [
-                      name === 'Pengunjung' ? `${value} orang` : `${value} rombongan`,
-                      name,
-                    ]}
-                  />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="Pengunjung"
-                    fill="#2D6A4F"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={40}
-                  />
-                  <Bar
-                    yAxisId="right"
-                    dataKey="Rombongan"
-                    fill="#F5A623"
-                    radius={[6, 6, 0, 0]}
-                    maxBarSize={40}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            {salesData.every(d => d.Pengunjung === 0) && (
-              <p className="text-center text-xs text-gray-400 -mt-8">
-                Belum ada data reservasi 6 bulan terakhir
-              </p>
-            )}
-          </CardBody>
-        </Card>
-        
-        <Card>
-          <CardBody>
-            <h2 className="text-sm font-bold text-gray-900 mb-6">Kunjungan Berdasarkan Jenis</h2>
-            <div className="h-64 w-full flex flex-col items-center justify-center">
-              {visitTypes.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={visitTypes} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                      {visitTypes.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                    </Pie>
-                    <RechartsTooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <p className="text-gray-400 text-sm">Belum ada data kunjungan</p>
-              )}
-            </div>
-          </CardBody>
-        </Card>
-      </div>
+      {/* ── SECTION 5: LEVEL 5 - VISITOR DEMOGRAPHICS, RECENT ACTIVITY, LOW STOCK ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Visitor Demographics Donut */}
+        <VisitorDemographicsCard
+          data={visitorDemographics}
+          totalVisitors={kpiData.visitors}
+          loading={loading}
+        />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardBody>
-            <h2 className="text-sm font-bold text-gray-900 mb-6">10 Produk Terlaris</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="py-2 px-3">Produk</th>
-                    <th className="py-2 px-3">Terjual</th>
-                    <th className="py-2 px-3">Sisa Stok</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {topProducts.map(p => (
-                    <tr key={p.id}>
-                      <td className="py-2 px-3 font-medium">{p.name}</td>
-                      <td className="py-2 px-3 font-bold text-green-600">{p.sold_count || 0}</td>
-                      <td className="py-2 px-3 text-gray-500">{p.stock}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardBody>
-        </Card>
+        {/* Recent Activities Live Feed */}
+        <RecentActivityCard
+          activities={recentActivities}
+          loading={loading}
+        />
 
-        <Card>
-          <CardBody>
-            <h2 className="text-sm font-bold text-gray-900 mb-6">Jadwal Kunjungan Terdekat</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="py-2 px-3">Tanggal</th>
-                    <th className="py-2 px-3">Nama/Rombongan</th>
-                    <th className="py-2 px-3">Jumlah</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {recentReservations.map(r => (
-                    <tr key={r.id}>
-                      <td className="py-2 px-3 text-gray-600">{formatDate(r.visit_date)}</td>
-                      <td className="py-2 px-3 font-medium">{r.name}</td>
-                      <td className="py-2 px-3 text-gray-500">{r.num_visitors} orang</td>
-                    </tr>
-                  ))}
-                  {recentReservations.length === 0 && <tr><td colSpan={3} className="py-4 text-center text-gray-400">Tidak ada jadwal</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </CardBody>
-        </Card>
+        {/* Low Stock Alert (if not already rendered in previous row) */}
+        {role !== 'umkm_user' && (
+          <LowStockAlertCard
+            products={lowStockProducts}
+            loading={loading}
+          />
+        )}
       </div>
     </div>
   )
