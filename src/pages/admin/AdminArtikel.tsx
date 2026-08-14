@@ -52,7 +52,9 @@ export default function AdminArtikel() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => {
+    fetchData()
+  }, [role, myUmkm])
 
   const {
     register,

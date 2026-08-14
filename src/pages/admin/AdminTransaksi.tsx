@@ -241,7 +241,7 @@ export default function AdminTransaksi() {
     }, 0)
   }, [cart])
 
-  // Process Payment & Complete Checkout
+  // Process Payment & Complete Checkout (Server-Validated & Atomic)
   const handleProcessPayment = async (
     method: PaymentMethod,
     cashGiven: number,
@@ -256,12 +256,63 @@ export default function AdminTransaksi() {
       const trxDateStr = new Date().toISOString()
       const trxNumber = `KBN-${new Date().toISOString().replace(/\D/g, '').slice(0, 8)}-${Math.floor(1000 + Math.random() * 9000)}`
 
-      // 1. Insert Transaction Record
+      // 1. Fetch fresh server-side stock & prices to prevent race conditions & front-end price tampering
+      const productIds = cart.map((i) => i.product.id)
+      const { data: serverProducts, error: prodFetchErr } = await supabase
+        .from('products')
+        .select('id, name, price, discount_price, stock, sold_count, umkm_id')
+        .in('id', productIds)
+
+      if (prodFetchErr) throw new Error('Gagal memverifikasi ketersediaan stok server')
+
+      const serverProdMap = new Map((serverProducts || []).map((p) => [p.id, p]))
+
+      // 2. Validate stock sufficiency & compute verified server total
+      let verifiedTotal = 0
+      const validatedItems: {
+        product_id: string
+        name: string
+        quantity: number
+        price_at_time: number
+        current_stock: number
+        current_sold: number
+      }[] = []
+
+      for (const item of cart) {
+        const dbProd = serverProdMap.get(item.product.id)
+        if (!dbProd) {
+          throw new Error(`Produk "${item.product.name}" tidak ditemukan di database.`)
+        }
+
+        if ((dbProd.stock || 0) < item.quantity) {
+          throw new Error(
+            `Stok produk "${dbProd.name}" tidak mencukupi (sisa ${dbProd.stock || 0}, diminta ${item.quantity}). Transaksi dibatalkan.`
+          )
+        }
+
+        const effectiveUnitPrice =
+          dbProd.discount_price && dbProd.discount_price > 0 && dbProd.discount_price < dbProd.price
+            ? dbProd.discount_price
+            : dbProd.price
+
+        verifiedTotal += effectiveUnitPrice * item.quantity
+
+        validatedItems.push({
+          product_id: dbProd.id,
+          name: dbProd.name,
+          quantity: item.quantity,
+          price_at_time: effectiveUnitPrice,
+          current_stock: dbProd.stock || 0,
+          current_sold: dbProd.sold_count || 0,
+        })
+      }
+
+      // 3. Insert Transaction Record with verified total
       const { data: trx, error: trxErr } = await supabase
         .from('transactions')
         .insert({
           umkm_id: umkmId,
-          total_amount: totalCartAmount,
+          total_amount: verifiedTotal,
           type: 'offline',
           status: 'completed',
           customer_name: `${formattedCustomer} (${method.toUpperCase()})`,
@@ -272,21 +323,19 @@ export default function AdminTransaksi() {
 
       if (trxErr) throw new Error(trxErr.message)
 
-      // 2. Insert Transaction Items & Decrease Stock & Log Movement
-      for (const item of cart) {
-        const unitPrice = item.product.discount_price || item.product.price || 0
-
+      // 4. Insert Transaction Items & Decrease Stock & Log Movement
+      for (const item of validatedItems) {
         // Insert Item
         await supabase.from('transaction_items').insert({
           transaction_id: trx.id,
-          product_id: item.product.id,
+          product_id: item.product_id,
           quantity: item.quantity,
-          price_at_time: unitPrice,
+          price_at_time: item.price_at_time,
         })
 
         // Update Stock in products table
-        const nextStock = Math.max(0, (item.product.stock || 0) - item.quantity)
-        const nextSold = (item.product.sold_count || 0) + item.quantity
+        const nextStock = Math.max(0, item.current_stock - item.quantity)
+        const nextSold = item.current_sold + item.quantity
 
         await supabase
           .from('products')
@@ -295,12 +344,12 @@ export default function AdminTransaksi() {
             sold_count: nextSold,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', item.product.id)
+          .eq('id', item.product_id)
 
         // Log to stock_movements
         await supabase.from('stock_movements').insert({
-          product_id: item.product.id,
-          previous_stock: item.product.stock || 0,
+          product_id: item.product_id,
+          previous_stock: item.current_stock,
           quantity: item.quantity,
           movement_type: 'subtract',
           new_stock: nextStock,
@@ -308,21 +357,21 @@ export default function AdminTransaksi() {
         })
       }
 
-      toast.success('Transaksi berhasil disimpan & stok diperbarui!')
+      toast.success('Transaksi berhasil disimpan & stok terverifikasi!')
 
-      // Prepare Receipt Data
+      // 5. Prepare Receipt Data
       const receipt: ReceiptData = {
         transactionNumber: trxNumber,
         date: trxDateStr,
         cashierName: todayDailyMetrics.cashierName,
         customerName: formattedCustomer,
-        items: cart.map((i) => ({
-          name: i.product.name,
+        items: validatedItems.map((i) => ({
+          name: i.name,
           quantity: i.quantity,
-          price: i.product.discount_price || i.product.price || 0,
-          subtotal: (i.product.discount_price || i.product.price || 0) * i.quantity,
+          price: i.price_at_time,
+          subtotal: i.price_at_time * i.quantity,
         })),
-        totalAmount: totalCartAmount,
+        totalAmount: verifiedTotal,
         paymentMethod: method,
         cashGiven: method === 'cash' ? cashGiven : undefined,
         change: method === 'cash' ? change : undefined,

@@ -298,7 +298,7 @@ export default function Dashboard() {
     return buildTrendData(currentRange, currentReservations, currentTransactions)
   }, [currentRange, currentReservations, currentTransactions])
 
-  // 4. Top UMKM Ranking
+  // 4. Top UMKM Ranking (Per-Item Attribution from Valid Transactions)
   const topUmkmItems: TopUmkmItem[] = useMemo(() => {
     const umkmMap: Record<string, { id: string; name: string; revenue: number; ordersCount: number }> = {}
 
@@ -308,9 +308,24 @@ export default function Dashboard() {
 
     currentTransactions.forEach((t) => {
       if (t.status === 'cancelled' || t.status === 'failed') return
-      const uId = t.umkm_id || t.umkm?.id
-      const uName = t.umkm?.name || 'Kebun Kelulut Pusat'
-      if (uId) {
+
+      if (t.items && t.items.length > 0) {
+        t.items.forEach((item: any) => {
+          const uId = item.product?.umkm_id || item.product?.umkm?.id || t.umkm_id
+          const uName = item.product?.umkm?.name || t.umkm?.name || 'Kebun Kelulut Pusat'
+          const itemSubtotal = (Number(item.quantity) || 1) * (Number(item.price_at_time) || 0)
+
+          if (uId) {
+            if (!umkmMap[uId]) {
+              umkmMap[uId] = { id: uId, name: uName, revenue: 0, ordersCount: 0 }
+            }
+            umkmMap[uId].revenue += itemSubtotal
+            umkmMap[uId].ordersCount += 1
+          }
+        })
+      } else if (t.umkm_id) {
+        const uId = t.umkm_id
+        const uName = t.umkm?.name || 'Kebun Kelulut Pusat'
         if (!umkmMap[uId]) {
           umkmMap[uId] = { id: uId, name: uName, revenue: 0, ordersCount: 0 }
         }
