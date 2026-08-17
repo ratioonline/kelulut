@@ -5,52 +5,41 @@ import { supabase } from '../../lib/supabase'
 import type { HeroSlide } from '../../types/database'
 import { cn } from '../../lib/utils'
 
-// Fallback slides jika DB kosong
-const FALLBACK_SLIDES: HeroSlide[] = [
-  {
-    id: 'fallback-1',
-    title: 'Temukan Keajaiban\nLebah Kelulut',
-    subtitle: 'Nikmati wisata edukasi unik bersama lebah kelulut di Sangatta, Kutai Timur. Belajar, panen madu, dan bawa pulang kenangan tak terlupakan.',
-    image_url: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1600&q=80',
-    badge_text: '🐝 Wisata Edukasi Kelulut',
-    cta_primary_label: 'Reservasi Sekarang',
-    cta_primary_url: '/reservasi',
-    cta_secondary_label: 'Lihat Program',
-    cta_secondary_url: '/program',
-    is_active: true,
-    sort_order: 1,
-    created_at: '',
-  },
-]
-
 const AUTOPLAY_DELAY = 5500 // ms
 
 export default function HeroSlider() {
-  const [slides, setSlides]       = useState<HeroSlide[]>([])
-  const [current, setCurrent]     = useState(0)
+  const [slides, setSlides] = useState<HeroSlide[]>([])
+  const [loading, setLoading] = useState(true)
+  const [current, setCurrent] = useState(0)
   const [animating, setAnimating] = useState(false)
-  const [loaded, setLoaded]       = useState<Record<number, boolean>>({})
+  const [loaded, setLoaded] = useState<Record<number, boolean>>({})
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Fetch slides dari Supabase
   useEffect(() => {
     const fetchSlides = async () => {
-      const { data, error } = await supabase
-        .from('hero_slides')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-      
-      if (!error && data && data.length > 0) {
-        setSlides(data as HeroSlide[])
-      } else {
-        setSlides(FALLBACK_SLIDES)
+      try {
+        const { data, error } = await supabase
+          .from('hero_slides')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true })
+
+        if (!error && data) {
+          setSlides(data as HeroSlide[])
+        } else {
+          setSlides([])
+        }
+      } catch (err) {
+        setSlides([])
+      } finally {
+        setLoading(false)
       }
     }
     fetchSlides()
   }, [])
 
-  const activeSlides = slides.length > 0 ? slides : FALLBACK_SLIDES
+  const activeSlides = slides.filter((s) => s.is_active)
 
   const goTo = useCallback((idx: number) => {
     if (animating || idx === current) return
@@ -94,9 +83,33 @@ export default function HeroSlider() {
     if (Math.abs(diff) > 50) diff > 0 ? next() : prev()
   }
 
-  const slide = activeSlides[current] ?? FALLBACK_SLIDES[0]
+  if (loading) {
+    return (
+      <section
+        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#1B4332]"
+        aria-label="Memuat slider hero"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1B4332]/90 via-[#1B4332]/75 to-[#1B4332]/95" />
+        <div className="relative z-20 text-center px-4 max-w-4xl mx-auto w-full flex flex-col items-center animate-pulse">
+          <div className="h-8 w-52 bg-white/10 rounded-full mb-6" />
+          <div className="h-12 md:h-16 w-3/4 max-w-xl bg-white/10 rounded-2xl mb-3" />
+          <div className="h-12 md:h-16 w-1/2 max-w-md bg-white/10 rounded-2xl mb-6" />
+          <div className="h-4 w-full max-w-lg bg-white/10 rounded mb-2" />
+          <div className="h-4 w-2/3 max-w-md bg-white/10 rounded mb-10" />
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="h-14 w-44 bg-white/10 rounded-2xl" />
+            <div className="h-14 w-40 bg-white/10 rounded-2xl" />
+          </div>
+        </div>
+      </section>
+    )
+  }
 
-  // Split title on \n for highlight effect
+  if (activeSlides.length === 0) {
+    return null
+  }
+
+  const slide = activeSlides[current] ?? activeSlides[0]
   const titleParts = (slide.title ?? '').split('\n')
 
   return (

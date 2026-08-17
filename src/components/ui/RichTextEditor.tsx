@@ -32,7 +32,7 @@ interface RichTextEditorProps {
 export default function RichTextEditor({ value, onChange, error, placeholder }: RichTextEditorProps) {
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  
+
   // Media Context
   const { addOptimisticMedia } = useMediaStore()
   const { role, myUmkm } = useAuthStore()
@@ -40,7 +40,7 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
   const handlePastedImages = async (files: File[]) => {
     setIsUploading(true)
     const toastId = toast.loading(`Mengunggah ${files.length} gambar dari clipboard...`)
-    
+
     try {
       for (const file of files) {
         // 1. Process/compress image
@@ -48,11 +48,11 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
           maxDimension: 1200,
           quality: 0.80,
         })
-        
+
         // 2. Upload to storage
         const uniqueFileName = `${Date.now()}_${processed.fileName}`
         const storagePath = `Artikel/${uniqueFileName}`
-        
+
         const { error: uploadError } = await supabase.storage
           .from('media')
           .upload(storagePath, processed.blob, {
@@ -105,7 +105,7 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
             altText: dbData.alt_text || '',
             umkm_id: dbData.umkm_id
           })
-          
+
           // Insert into TipTap Editor
           if (editor) {
             editor.chain().focus().setImage({
@@ -153,7 +153,7 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
 
         let hasImage = false
         const filesToProcess: File[] = []
-        
+
         for (let i = 0; i < items.length; i++) {
           const item = items[i]
           if (item.type.indexOf('image') !== -1) {
@@ -218,9 +218,8 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
       type="button"
       onClick={onClick}
       title={title}
-      className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
-        isActive ? 'bg-[#2D6A4F] text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-      }`}
+      className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${isActive ? 'bg-[#2D6A4F] text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+        }`}
     >
       <Icon size={16} />
     </button>
@@ -229,34 +228,34 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
   return (
     <div className="w-full relative">
       <div className={`border rounded-xl overflow-hidden bg-white flex flex-col ${error ? 'border-red-500' : 'border-gray-300'}`}>
-        
+
         {/* Toolbar */}
         <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex flex-wrap items-center gap-1 sm:gap-2 overflow-x-auto">
           <ToolButton onClick={() => editor.chain().focus().toggleBold().run()} isActive={editor.isActive('bold')} icon={Bold} title="Bold" />
           <ToolButton onClick={() => editor.chain().focus().toggleItalic().run()} isActive={editor.isActive('italic')} icon={Italic} title="Italic" />
           <ToolButton onClick={() => editor.chain().focus().toggleUnderline().run()} isActive={editor.isActive('underline')} icon={UnderlineIcon} title="Underline" />
-          
+
           <div className="w-px h-5 bg-gray-300 mx-1"></div>
-          
+
           <ToolButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} isActive={editor.isActive('heading', { level: 2 })} icon={Heading2} title="Heading 2" />
           <ToolButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} isActive={editor.isActive('heading', { level: 3 })} icon={Heading3} title="Heading 3" />
-          
+
           <div className="w-px h-5 bg-gray-300 mx-1"></div>
-          
+
           <ToolButton onClick={() => editor.chain().focus().toggleBulletList().run()} isActive={editor.isActive('bulletList')} icon={List} title="Bullet List" />
           <ToolButton onClick={() => editor.chain().focus().toggleOrderedList().run()} isActive={editor.isActive('orderedList')} icon={ListOrdered} title="Numbered List" />
           <ToolButton onClick={() => editor.chain().focus().toggleBlockquote().run()} isActive={editor.isActive('blockquote')} icon={Quote} title="Quote" />
-          
+
           <div className="w-px h-5 bg-gray-300 mx-1"></div>
-          
+
           <ToolButton onClick={() => editor.chain().focus().setTextAlign('left').run()} isActive={editor.isActive({ textAlign: 'left' })} icon={AlignLeft} title="Align Left" />
           <ToolButton onClick={() => editor.chain().focus().setTextAlign('center').run()} isActive={editor.isActive({ textAlign: 'center' })} icon={AlignCenter} title="Align Center" />
           <ToolButton onClick={() => editor.chain().focus().setTextAlign('right').run()} isActive={editor.isActive({ textAlign: 'right' })} icon={AlignRight} title="Align Right" />
-          
+
           <div className="w-px h-5 bg-gray-300 mx-1"></div>
-          
+
           <ToolButton onClick={setLink} isActive={editor.isActive('link')} icon={LinkIcon} title="Link" />
-          
+
           <button
             type="button"
             onClick={() => setIsMediaManagerOpen(true)}
@@ -265,9 +264,9 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
             <ImageIcon size={16} />
             <span className="hidden sm:inline">Media</span>
           </button>
-          
+
           <div className="w-px h-5 bg-gray-300 mx-1 ml-auto hidden sm:block"></div>
-          
+
           <div className="flex gap-1 ml-auto sm:ml-0">
             <ToolButton onClick={() => editor.chain().focus().undo().run()} isActive={false} icon={Undo} title="Undo" />
             <ToolButton onClick={() => editor.chain().focus().redo().run()} isActive={false} icon={Redo} title="Redo" />
@@ -279,7 +278,7 @@ export default function RichTextEditor({ value, onChange, error, placeholder }: 
           <EditorContent editor={editor} />
         </div>
       </div>
-      
+
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
       {/* Media Manager for Inserting Images */}
