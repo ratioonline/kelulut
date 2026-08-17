@@ -229,7 +229,7 @@ export default function AdminReservasi() {
     try {
       const { error } = await supabase
         .from('reservations')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus })
         .eq('id', reservation.id)
       if (error) throw error
 
