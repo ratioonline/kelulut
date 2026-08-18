@@ -98,29 +98,22 @@ export default function MediaManager({
     }
   }, [isOpen, isInline, defaultFolder])
 
-  // Handle Clipboard Paste (Ctrl+V / Cmd+V) — global on document to bypass modal focus traps
-  useEffect(() => {
-    if (!isOpen && !isInline) return
-
-    const handlePaste = async (e: ClipboardEvent) => {
-      // Don't interfere if user is typing in an input/textarea
-      const tag = (e.target as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
-
-      const clipboardItems = e.clipboardData?.items
-      if (!clipboardItems) return
-
+  // ── Paste via navigator.clipboard.read() — called by explicit button click ──
+  const handlePasteFromClipboard = async () => {
+    if (!navigator.clipboard?.read) {
+      toast.error('Browser tidak mendukung Clipboard API. Gunakan drag-drop atau Upload File.')
+      return
+    }
+    try {
+      const clipboardItems = await navigator.clipboard.read()
       const filesToProcess: File[] = []
-      for (let i = 0; i < clipboardItems.length; i++) {
-        const item = clipboardItems[i]
-        const isImage = item.type.startsWith('image/')
-        const isVideo = item.type.startsWith('video/')
-        if (isImage || isVideo) {
-          const blob = item.getAsFile()
-          if (blob) {
-            const ext = item.type.split('/')[1] || 'bin'
-            const name = `paste_${Date.now()}.${ext}`
-            filesToProcess.push(new File([blob], name, { type: blob.type }))
+
+      for (const clipItem of clipboardItems) {
+        for (const type of clipItem.types) {
+          if (type.startsWith('image/') || type.startsWith('video/')) {
+            const blob = await clipItem.getType(type)
+            const ext = type.split('/')[1] || 'png'
+            filesToProcess.push(new File([blob], `paste_${Date.now()}.${ext}`, { type }))
           }
         }
       }
@@ -129,14 +122,20 @@ export default function MediaManager({
         const imgCount = filesToProcess.filter(f => f.type.startsWith('image/')).length
         const vidCount = filesToProcess.filter(f => f.type.startsWith('video/')).length
         const label = [imgCount && `${imgCount} gambar`, vidCount && `${vidCount} video`].filter(Boolean).join(' & ')
-        toast.success(`📋 ${label} dari clipboard ditemukan — sedang diunggah...`)
+        toast.success(`📋 ${label} dari clipboard — sedang diunggah...`)
         handleBatchProcessFiles(filesToProcess)
+      } else {
+        toast.error('Tidak ada gambar/video di clipboard. Salin gambar terlebih dahulu.')
       }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        toast.error('Akses clipboard ditolak. Izinkan akses clipboard di browser Anda.')
+      } else {
+        toast.error('Gagal membaca clipboard.')
+      }
+      console.warn('Clipboard read error:', err)
     }
-
-    document.addEventListener('paste', handlePaste)
-    return () => document.removeEventListener('paste', handlePaste)
-  }, [isOpen, isInline, targetFolderUpload, moduleName])
+  }
 
   // Batch Process Upload to Supabase Storage (images + videos)
   const handleBatchProcessFiles = async (files: File[]) => {
@@ -428,11 +427,16 @@ export default function MediaManager({
           </button>
         </div>
 
-        {/* Ctrl+V Hint */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+        {/* Ctrl+V → Paste Button */}
+        <button
+          type="button"
+          onClick={handlePasteFromClipboard}
+          className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold transition-colors cursor-pointer"
+          title="Paste gambar atau video dari clipboard"
+        >
           <ClipboardCheck size={14} className="text-amber-600 shrink-0" />
-          <span>Dukungan <strong>Ctrl+V</strong> dari Clipboard</span>
-        </div>
+          <span>Paste dari Clipboard</span>
+        </button>
       </div>
 
       {/* TAB 1: UPLOAD BARU */}
