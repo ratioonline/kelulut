@@ -1,10 +1,7 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef } from 'react'
 import { Images, X, Clipboard, Upload } from 'lucide-react'
 import MediaManager from './MediaManager'
 import { MediaItem } from '../../stores/mediaStore'
-import { supabase } from '../../lib/supabase'
-import { processImageFile } from '../../lib/mediaUtils'
-import { useAuthStore } from '../../stores/authStore'
 import toast from 'react-hot-toast'
 
 interface MediaPickerButtonProps {
@@ -17,6 +14,41 @@ interface MediaPickerButtonProps {
   className?: string
 }
 
+// ── Convert File/Blob to base64 data URL ──
+function fileToBase64(file: File | Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('Gagal membaca file'))
+    reader.readAsDataURL(file)
+  })
+}
+
+// ── Compress image via canvas, return base64 ──
+async function compressImage(file: File | Blob, maxPx = 1400, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > maxPx || height > maxPx) {
+        if (width >= height) { height = Math.round((height / width) * maxPx); width = maxPx }
+        else { width = Math.round((width / height) * maxPx); height = maxPx }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, width, height)
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/webp', quality))
+    }
+    img.onerror = () => reject(new Error('Gagal memuat gambar'))
+    img.src = url
+  })
+}
+
 export default function MediaPickerButton({
   value,
   onChange,
@@ -27,14 +59,12 @@ export default function MediaPickerButton({
   className,
 }: MediaPickerButtonProps) {
   const [managerOpen, setManagerOpen] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [processing, setProcessing] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
-  const [pastingClipboard, setPastingClipboard] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { role, myUmkm } = useAuthStore()
 
-  // ── Core upload function ──
-  const uploadFile = useCallback(async (file: File) => {
+  // ── Process any file → base64 (images compressed, videos raw) ──
+  const processFile = async (file: File) => {
     const isImage = file.type.startsWith('image/') || file.type.includes('svg')
     const isVideo = file.type.startsWith('video/')
 
@@ -42,75 +72,37 @@ export default function MediaPickerButton({
       toast.error(`Format tidak didukung: ${file.type || file.name}`)
       return
     }
+    if (isVideo && file.size > 50 * 1024 * 1024) {
+      toast.error('Video melebihi batas 50 MB untuk preview langsung. Gunakan Media Library.')
+      return
+    }
 
-    setUploading(true)
-    const folderToSave = folder === 'semua' ? 'Lainnya' : folder
-
+    setProcessing(true)
     try {
-      let uploadBlob: Blob = file
-      let fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || `upload_${Date.now()}`
-      let mimeType = file.type
-
+      let base64: string
       if (isImage) {
-        const processed = await processImageFile(file, file.name, {
-          maxDimension: 1200,
-          quality: 0.82,
-        })
-        uploadBlob = processed.blob
-        fileName = processed.fileName
-        mimeType = processed.mimeType
+        base64 = await compressImage(file)
+      } else {
+        base64 = await fileToBase64(file)
       }
-
-      const storagePath = `${folderToSave}/${Date.now()}_${fileName}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('media')
-        .upload(storagePath, uploadBlob, {
-          cacheControl: '31536000',
-          upsert: false,
-          contentType: mimeType,
-        })
-
-      if (uploadError) {
-        toast.error('Gagal mengunggah: ' + uploadError.message)
-        return
-      }
-
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(storagePath)
-
-      await supabase.from('media_assets').insert({
-        file_name: fileName,
-        file_size: uploadBlob.size,
-        url: urlData.publicUrl,
-        mime_type: mimeType,
-        module: moduleName,
-        checksum: '',
-        folder: folderToSave,
-        alt_text: file.name.replace(/\.[^.]+$/, '') || fileName,
-        umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null,
-      })
-
-      onChange(urlData.publicUrl)
-      toast.success('Berhasil diunggah! ✅')
+      onChange(base64)
+      toast.success('File siap digunakan ✅')
     } catch (err) {
       console.error(err)
-      toast.error('Terjadi kesalahan saat mengunggah')
+      toast.error('Gagal memproses file')
     } finally {
-      setUploading(false)
+      setProcessing(false)
     }
-  }, [folder, moduleName, role, myUmkm, onChange])
+  }
 
-  // ── Paste via explicit button click → navigator.clipboard.read() ──
-  // This is the ONLY reliable way to read clipboard in modern browsers
+  // ── Paste via navigator.clipboard.read() — button click as user gesture ──
   const handlePasteFromClipboard = async () => {
-    setPastingClipboard(true)
+    if (!navigator.clipboard?.read) {
+      toast.error('Browser tidak mendukung Clipboard API. Gunakan Upload File atau drag-drop.')
+      return
+    }
+    setProcessing(true)
     try {
-      // Modern Clipboard API — requires user gesture (this button click IS the gesture)
-      if (!navigator.clipboard?.read) {
-        toast.error('Browser Anda tidak mendukung paste clipboard. Gunakan Ctrl+C lalu drag-drop, atau Upload dari Perangkat.')
-        return
-      }
-
       const clipboardItems = await navigator.clipboard.read()
       let handled = false
 
@@ -118,9 +110,10 @@ export default function MediaPickerButton({
         for (const type of clipItem.types) {
           if (type.startsWith('image/') || type.startsWith('video/')) {
             const blob = await clipItem.getType(type)
-            const ext = type.split('/')[1] || 'png'
+            const ext = type.split('/')[1]?.replace(/\+.*/, '') || 'png'
             const file = new File([blob], `paste_${Date.now()}.${ext}`, { type })
-            await uploadFile(file)
+            setProcessing(false)
+            await processFile(file)
             handled = true
             break
           }
@@ -129,35 +122,32 @@ export default function MediaPickerButton({
       }
 
       if (!handled) {
-        toast.error('Tidak ada gambar atau video di clipboard. Salin gambar terlebih dahulu lalu klik Paste.')
+        toast.error('Tidak ada gambar di clipboard. Salin gambar terlebih dahulu lalu klik Paste.')
+        setProcessing(false)
       }
     } catch (err: unknown) {
-      // NotAllowedError = user denied clipboard permission
+      setProcessing(false)
       if (err instanceof Error && err.name === 'NotAllowedError') {
-        toast.error('Akses clipboard ditolak. Izinkan akses clipboard di browser Anda.')
+        toast.error('Akses clipboard ditolak. Izinkan akses clipboard di pengaturan browser.')
       } else {
-        // Fallback: try legacy paste via event dispatch
-        toast('Gunakan Ctrl+V saat berada di area ini untuk paste gambar.', { icon: '📋' })
+        toast.error('Gagal membaca clipboard. Coba gunakan Upload File.')
       }
-      console.warn('Clipboard read error:', err)
-    } finally {
-      setPastingClipboard(false)
+      console.warn('Clipboard read:', err)
     }
   }
 
-  // ── Fallback: listen to native paste event on the component area ──
+  // ── Native paste fallback (when container is focused → user presses Ctrl+V) ──
   const handleNativePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
     const items = e.clipboardData?.items
     if (!items) return
-
     for (let i = 0; i < items.length; i++) {
       const item = items[i]
       if (item.type.startsWith('image/') || item.type.startsWith('video/')) {
         const blob = item.getAsFile()
         if (!blob) continue
-        const ext = item.type.split('/')[1] || 'png'
+        const ext = item.type.split('/')[1]?.replace(/\+.*/, '') || 'png'
         const file = new File([blob], `paste_${Date.now()}.${ext}`, { type: item.type })
-        uploadFile(file)
+        processFile(file)
         e.preventDefault()
         return
       }
@@ -167,13 +157,13 @@ export default function MediaPickerButton({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    const files = Array.from(e.dataTransfer.files)
-    if (files[0]) uploadFile(files[0])
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) uploadFile(file)
+    if (file) processFile(file)
     e.target.value = ''
   }
 
@@ -213,29 +203,27 @@ export default function MediaPickerButton({
           </div>
         </div>
       ) : (
-        /* ── Empty state ── */
+        /* ── Empty / upload state ── */
         <div
           tabIndex={0}
           onPaste={handleNativePaste}
           onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
-          className={`w-full border-2 border-dashed rounded-2xl transition-all outline-none focus:ring-2 focus:ring-[#2D6A4F] ${
+          className={`w-full border-2 border-dashed rounded-2xl transition-all outline-none focus:ring-2 focus:ring-[#2D6A4F] focus:border-[#2D6A4F] ${
             isDragOver
               ? 'border-[#2D6A4F] bg-[#2D6A4F]/10 scale-[1.01]'
               : 'border-gray-300 hover:border-[#2D6A4F] hover:bg-[#2D6A4F]/5'
           }`}
         >
-          {uploading || pastingClipboard ? (
+          {processing ? (
             <div className="flex flex-col items-center justify-center gap-2 py-8">
               <div className="w-7 h-7 border-2 border-[#2D6A4F] border-t-transparent rounded-full animate-spin" />
-              <p className="text-xs font-semibold text-[#2D6A4F]">
-                {pastingClipboard ? 'Membaca clipboard...' : 'Mengunggah...'}
-              </p>
+              <p className="text-xs font-semibold text-[#2D6A4F]">Memproses...</p>
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center gap-3 py-6 px-4">
-              {/* Row 1: Media Library */}
+              {/* Media Library */}
               <button
                 type="button"
                 onClick={() => setManagerOpen(true)}
@@ -251,9 +239,8 @@ export default function MediaPickerButton({
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              {/* Row 2: Upload + Paste */}
-              <div className="flex items-center gap-3 flex-wrap justify-center">
-                {/* Upload from device */}
+              {/* Action buttons */}
+              <div className="flex items-center gap-2 flex-wrap justify-center">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -262,21 +249,19 @@ export default function MediaPickerButton({
                   <Upload size={13} /> Upload File
                 </button>
 
-                {/* Paste from clipboard — uses navigator.clipboard.read() on click */}
                 <button
                   type="button"
                   onClick={handlePasteFromClipboard}
                   className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold rounded-xl transition-colors"
-                  title="Paste gambar/video dari clipboard (Ctrl+C dahulu lalu klik tombol ini)"
+                  title="Salin gambar dahulu lalu klik ini (atau Ctrl+V setelah klik area ini)"
                 >
-                  <Clipboard size={13} />
-                  Paste dari Clipboard
+                  <Clipboard size={13} /> Paste Gambar
                 </button>
               </div>
 
-              {/* Hint text */}
               <p className="text-[10px] text-gray-400 text-center">
-                Seret file ke sini · Gambar &amp; Video · Atau fokus area ini lalu <kbd className="px-1 bg-gray-100 border rounded text-[9px] font-mono">Ctrl+V</kbd>
+                Seret file ke sini · Atau klik area ini lalu tekan{' '}
+                <kbd className="px-1 bg-gray-100 border rounded text-[9px] font-mono">Ctrl+V</kbd>
               </p>
             </div>
           )}
@@ -285,7 +270,6 @@ export default function MediaPickerButton({
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -294,7 +278,6 @@ export default function MediaPickerButton({
         onChange={handleFileChange}
       />
 
-      {/* Media Manager Modal */}
       <MediaManager
         isOpen={managerOpen}
         onClose={() => setManagerOpen(false)}
