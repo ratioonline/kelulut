@@ -98,134 +98,209 @@ export default function MediaManager({
     }
   }, [isOpen, isInline, defaultFolder])
 
-  // Handle Clipboard Paste (Ctrl+V / Cmd+V)
+  // Handle Clipboard Paste (Ctrl+V / Cmd+V) — global on document to bypass modal focus traps
   useEffect(() => {
     if (!isOpen && !isInline) return
 
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Don't interfere if user is typing in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
       const clipboardItems = e.clipboardData?.items
       if (!clipboardItems) return
 
       const filesToProcess: File[] = []
       for (let i = 0; i < clipboardItems.length; i++) {
         const item = clipboardItems[i]
-        if (item.type.indexOf('image') !== -1) {
+        const isImage = item.type.startsWith('image/')
+        const isVideo = item.type.startsWith('video/')
+        if (isImage || isVideo) {
           const blob = item.getAsFile()
           if (blob) {
-            const pasteFile = new File([blob], `paste_${Date.now()}.png`, { type: blob.type })
-            filesToProcess.push(pasteFile)
+            const ext = item.type.split('/')[1] || 'bin'
+            const name = `paste_${Date.now()}.${ext}`
+            filesToProcess.push(new File([blob], name, { type: blob.type }))
           }
         }
       }
 
       if (filesToProcess.length > 0) {
-        toast.success(`Ditemukan ${filesToProcess.length} gambar dari Clipboard!`)
+        const imgCount = filesToProcess.filter(f => f.type.startsWith('image/')).length
+        const vidCount = filesToProcess.filter(f => f.type.startsWith('video/')).length
+        const label = [imgCount && `${imgCount} gambar`, vidCount && `${vidCount} video`].filter(Boolean).join(' & ')
+        toast.success(`📋 ${label} dari clipboard ditemukan — sedang diunggah...`)
         handleBatchProcessFiles(filesToProcess)
       }
     }
 
-    window.addEventListener('paste', handlePaste)
-    return () => window.removeEventListener('paste', handlePaste)
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
   }, [isOpen, isInline, targetFolderUpload, moduleName])
 
-  // Batch Process Upload to Supabase Storage
+  // Batch Process Upload to Supabase Storage (images + videos)
   const handleBatchProcessFiles = async (files: File[]) => {
-    const validFiles: File[] = []
+    const imageFiles: File[] = []
+    const videoFiles: File[] = []
 
     for (const file of files) {
-      if (!file.type.startsWith('image/') && !file.type.includes('svg')) {
-        toast.error(`File ${file.name} bukan format gambar yang valid.`)
-        continue
+      if (file.type.startsWith('image/') || file.type.includes('svg')) {
+        if (file.size > 50 * 1024 * 1024) {
+          toast.error(`File ${file.name} melebihi batas 50 MB.`)
+          continue
+        }
+        imageFiles.push(file)
+      } else if (file.type.startsWith('video/')) {
+        if (file.size > 200 * 1024 * 1024) {
+          toast.error(`Video ${file.name} melebihi batas 200 MB.`)
+          continue
+        }
+        videoFiles.push(file)
+      } else {
+        toast.error(`Format file ${file.name} tidak didukung.`)
       }
-      if (file.size > 20 * 1024 * 1024) {
-        toast.error(`File ${file.name} melebihi batas 20 MB.`)
-        continue
-      }
-      validFiles.push(file)
     }
 
-    if (validFiles.length === 0) return
+    if (imageFiles.length === 0 && videoFiles.length === 0) return
 
     setIsUploading(true)
-    setUploadProgress(10)
+    setUploadProgress(5)
 
     try {
       const folderToSave = targetFolderUpload === 'semua' ? 'Lainnya' : targetFolderUpload
       let successCount = 0
+      const total = imageFiles.length + videoFiles.length
+      let done = 0
 
-      for (let i = 0; i < validFiles.length; i++) {
-        const file = validFiles[i]
-        
-        // 1. Kompresi gambar di client (Browser)
-        const processed: ProcessedMedia = await processImageFile(file, file.name, {
-          maxDimension: 1200,
-          quality: 0.80,
-        })
-        
-        // 2. Upload blob ke Supabase Storage (Bucket: 'media')
-        const uniqueFileName = `${Date.now()}_${processed.fileName}`
-        const storagePath = `${folderToSave}/${uniqueFileName}`
-        
-        const { error: uploadError } = await supabase.storage
-          .from('media')
-          .upload(storagePath, processed.blob, {
-            cacheControl: '31536000',
-            upsert: false,
-            contentType: processed.mimeType
+      // ── Upload IMAGES (with compression) ──
+      for (const file of imageFiles) {
+        try {
+          const processed = await processImageFile(file, file.name, {
+            maxDimension: 1200,
+            quality: 0.80,
           })
 
-        if (uploadError) {
-          console.error('Storage Upload Error:', uploadError)
-          toast.error(`Gagal mengunggah ${processed.fileName}`)
-          continue
+          const uniqueFileName = `${Date.now()}_${processed.fileName}`
+          const storagePath = `${folderToSave}/${uniqueFileName}`
+
+          const { error: uploadError } = await supabase.storage
+            .from('media')
+            .upload(storagePath, processed.blob, {
+              cacheControl: '31536000',
+              upsert: false,
+              contentType: processed.mimeType
+            })
+
+          if (uploadError) {
+            console.error('Storage Upload Error:', uploadError)
+            toast.error(`Gagal mengunggah ${processed.fileName}`)
+            done++; setUploadProgress(Math.round((done / total) * 95))
+            continue
+          }
+
+          const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
+
+          const { data: dbData, error: dbError } = await supabase.from('media_assets').insert({
+            file_name: processed.fileName,
+            file_size: processed.fileSize,
+            url: publicUrlData.publicUrl,
+            mime_type: processed.mimeType,
+            module: moduleName,
+            checksum: processed.checksum,
+            folder: folderToSave,
+            alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+            umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null
+          }).select().single()
+
+          if (!dbError && dbData) {
+            addOptimisticMedia({
+              id: dbData.id,
+              fileName: dbData.file_name,
+              fileSize: dbData.file_size,
+              url: dbData.url,
+              mimeType: dbData.mime_type,
+              checksum: dbData.checksum || '',
+              folder: dbData.folder,
+              module: dbData.module,
+              createdAt: dbData.created_at,
+              altText: dbData.alt_text || '',
+              umkm_id: dbData.umkm_id
+            })
+            successCount++
+          } else if (dbError) {
+            toast.error(`Gagal menyimpan metadata ${processed.fileName}`)
+          }
+        } catch (imgErr) {
+          console.error('Image processing error:', imgErr)
+          toast.error(`Gagal memproses ${file.name}`)
         }
+        done++; setUploadProgress(Math.round((done / total) * 95))
+      }
 
-        // 3. Dapatkan Public URL
-        const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
-        const publicUrl = publicUrlData.publicUrl
+      // ── Upload VIDEOS (direct, no compression) ──
+      for (const file of videoFiles) {
+        try {
+          const ext = file.name.split('.').pop() || 'mp4'
+          const baseName = file.name.replace(/[^a-z0-9._-]/gi, '_')
+          const uniqueFileName = `${Date.now()}_${baseName}`
+          const storagePath = `${folderToSave}/${uniqueFileName}`
 
-        // 4. Insert data ke tabel `media_assets`
-        const { data: dbData, error: dbError } = await supabase.from('media_assets').insert({
-          file_name: processed.fileName,
-          file_size: processed.fileSize,
-          url: publicUrl,
-          mime_type: processed.mimeType,
-          module: moduleName,
-          checksum: processed.checksum,
-          folder: folderToSave,
-          alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
-          umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null
-        }).select().single()
+          const { error: uploadError } = await supabase.storage
+            .from('media')
+            .upload(storagePath, file, {
+              cacheControl: '31536000',
+              upsert: false,
+              contentType: file.type || `video/${ext}`
+            })
 
-        if (dbError) {
-          console.error('Database Insert Error:', dbError)
-          toast.error(`Gagal menyimpan metadata ${processed.fileName}`)
-          continue
+          if (uploadError) {
+            console.error('Video Upload Error:', uploadError)
+            toast.error(`Gagal mengunggah video ${file.name}`)
+            done++; setUploadProgress(Math.round((done / total) * 95))
+            continue
+          }
+
+          const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
+
+          const { data: dbData, error: dbError } = await supabase.from('media_assets').insert({
+            file_name: uniqueFileName,
+            file_size: file.size,
+            url: publicUrlData.publicUrl,
+            mime_type: file.type || `video/${ext}`,
+            module: moduleName,
+            checksum: '',
+            folder: folderToSave,
+            alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+            umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null
+          }).select().single()
+
+          if (!dbError && dbData) {
+            addOptimisticMedia({
+              id: dbData.id,
+              fileName: dbData.file_name,
+              fileSize: dbData.file_size,
+              url: dbData.url,
+              mimeType: dbData.mime_type,
+              checksum: '',
+              folder: dbData.folder,
+              module: dbData.module,
+              createdAt: dbData.created_at,
+              altText: dbData.alt_text || '',
+              umkm_id: dbData.umkm_id
+            })
+            successCount++
+          } else if (dbError) {
+            toast.error(`Gagal menyimpan metadata video ${file.name}`)
+          }
+        } catch (vidErr) {
+          console.error('Video upload error:', vidErr)
+          toast.error(`Gagal mengunggah video ${file.name}`)
         }
-
-        // 5. Tambahkan ke state UI (Optimistic Update)
-        if (dbData) {
-          addOptimisticMedia({
-            id: dbData.id,
-            fileName: dbData.file_name,
-            fileSize: dbData.file_size,
-            url: dbData.url,
-            mimeType: dbData.mime_type,
-            checksum: dbData.checksum || '',
-            folder: dbData.folder,
-            module: dbData.module,
-            createdAt: dbData.created_at,
-            altText: dbData.alt_text || '',
-            umkm_id: dbData.umkm_id
-          })
-          successCount++
-        }
-
-        setUploadProgress(Math.round(((i + 1) / validFiles.length) * 100))
+        done++; setUploadProgress(Math.round((done / total) * 95))
       }
 
       if (successCount > 0) {
-        toast.success(`${successCount} media berhasil diunggah!`)
+        toast.success(`${successCount} file berhasil diunggah!`)
         setSelectedFolder('semua')
         setActiveTab('library')
       }
@@ -416,7 +491,7 @@ export default function MediaManager({
             <div
               onClick={() => fileInputRef.current?.click()}
               onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
+                          onDrop={(e) => {
                 e.preventDefault()
                 if (e.dataTransfer.files?.length) {
                   handleBatchProcessFiles(Array.from(e.dataTransfer.files))
@@ -428,7 +503,7 @@ export default function MediaManager({
                 <div className="space-y-3 w-full">
                   <div className="w-10 h-10 border-3 border-[#2D6A4F] border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-xs font-semibold text-gray-800">
-                    Mengolah & Mengompres Gambar ({uploadProgress}%)
+                    Mengolah & Mengunggah ({uploadProgress}%)
                   </p>
                   <div className="w-48 max-w-full h-2 bg-gray-200 rounded-full mx-auto overflow-hidden">
                     <div
@@ -444,10 +519,10 @@ export default function MediaManager({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-gray-800">
-                      Pilih / Seret Berkas Gambar
+                      Pilih / Seret Berkas
                     </p>
                     <p className="text-[11px] text-gray-500 mt-0.5">
-                      JPG, PNG, WebP, SVG — Maks. 20 MB (Multiple Upload)
+                      Gambar (JPG, PNG, WebP, SVG) atau Video (MP4, MOV, WebM) — Maks. 200 MB
                     </p>
                   </div>
                   <div className="pt-1">
@@ -490,7 +565,7 @@ export default function MediaManager({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
+            accept="image/*,video/*,image/svg+xml"
             className="hidden"
             onChange={(e) => {
               if (e.target.files?.length) {
