@@ -10,6 +10,7 @@ interface ModalProps {
   children: React.ReactNode
   size?: 'sm' | 'md' | 'lg' | 'xl'
   footer?: React.ReactNode
+  zIndex?: string // e.g. 'z-50' (default) or 'z-[60]' for nested modals
 }
 
 const sizeMap = {
@@ -19,7 +20,7 @@ const sizeMap = {
   xl: 'max-w-4xl',
 }
 
-export default function Modal({ open, onClose, title, children, size = 'md', footer }: ModalProps) {
+export default function Modal({ open, onClose, title, children, size = 'md', footer, zIndex = 'z-50' }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden'
@@ -33,7 +34,7 @@ export default function Modal({ open, onClose, title, children, size = 'md', foo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4`}
       role="dialog"
       aria-modal="true"
     >

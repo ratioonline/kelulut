@@ -68,6 +68,7 @@ export default function MediaManager({
     selectAll,
     clearSelection,
     scanExistingAppImages,
+    setUmkmId,
   } = useMediaStore()
   const { role, myUmkm } = useAuthStore()
 
@@ -90,13 +91,19 @@ export default function MediaManager({
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Fetch media on mount
+  // Fetch media on mount — set umkmId filter for umkm_user role
   useEffect(() => {
     if (isOpen || isInline) {
+      // For umkm_user: only show their own media (satisfies RLS)
+      if (role === 'umkm_user' && myUmkm?.id) {
+        setUmkmId(myUmkm.id)
+      } else {
+        setUmkmId(null)
+      }
       fetchMedia(true)
       setTargetFolderUpload(defaultFolder === 'semua' ? 'Lainnya' : defaultFolder)
     }
-  }, [isOpen, isInline, defaultFolder])
+  }, [isOpen, isInline, defaultFolder, role, myUmkm?.id])
 
   // ── Paste via navigator.clipboard.read() — called by explicit button click ──
   const handlePasteFromClipboard = async () => {
@@ -879,7 +886,7 @@ export default function MediaManager({
 
   return (
     <>
-      <Modal open={isOpen} onClose={onClose} title="Media Manager" size="xl">
+      <Modal open={isOpen} onClose={onClose} title="Media Manager" size="xl" zIndex="z-[60]">
         {mainContent}
       </Modal>
 

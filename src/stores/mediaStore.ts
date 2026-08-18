@@ -52,9 +52,11 @@ interface MediaState {
   isLoading: boolean
   hasMore: boolean
   page: number
+  umkmId: string | null // when set, filter media by umkm_id (for umkm_user)
 
   // Actions
   fetchMedia: (reset?: boolean) => Promise<void>
+  setUmkmId: (id: string | null) => void
   addOptimisticMedia: (item: MediaItem) => void
   deleteMediaBatch: (ids: string[]) => Promise<void>
   renameMedia: (id: string, newFileName: string, newAltText?: string) => Promise<void>
@@ -84,9 +86,12 @@ export const useMediaStore = create<MediaState>()((set, get) => ({
   isLoading: false,
   hasMore: true,
   page: 0,
+  umkmId: null,
+
+  setUmkmId: (id) => set({ umkmId: id }),
 
   fetchMedia: async (reset = false) => {
-    const { selectedFolder, searchQuery, selectedModule, sortBy, page, items, isLoading, hasMore } = get()
+    const { selectedFolder, searchQuery, selectedModule, sortBy, page, items, isLoading, hasMore, umkmId } = get()
     
     if (isLoading) return
     if (!reset && !hasMore) return
@@ -96,6 +101,11 @@ export const useMediaStore = create<MediaState>()((set, get) => ({
 
     try {
       let query = supabase.from('media_assets').select('*', { count: 'exact' })
+
+      // If umkmId is set (umkm_user), only show that UMKM's media
+      if (umkmId) {
+        query = query.eq('umkm_id', umkmId)
+      }
 
       if (selectedFolder !== 'semua') query = query.eq('folder', selectedFolder)
       if (selectedModule !== 'semua') query = query.eq('module', selectedModule)
