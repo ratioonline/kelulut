@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { supabase } from '../lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -72,230 +73,248 @@ interface MediaState {
   scanExistingAppImages: () => Promise<void>
 }
 
-const ITEMS_PER_PAGE = 24
+const ITEMS_PER_PAGE = 30
 
-export const useMediaStore = create<MediaState>()((set, get) => ({
-  items: [],
-  folders: DEFAULT_FOLDERS,
-  selectedFolder: 'semua',
-  searchQuery: '',
-  selectedModule: 'semua',
-  sortBy: 'newest',
-  viewMode: 'grid',
-  selectedIds: [],
-  isLoading: false,
-  hasMore: true,
-  page: 0,
-  umkmId: null,
+export const useMediaStore = create<MediaState>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      folders: DEFAULT_FOLDERS,
+      selectedFolder: 'semua',
+      searchQuery: '',
+      selectedModule: 'semua',
+      sortBy: 'newest',
+      viewMode: 'grid',
+      selectedIds: [],
+      isLoading: false,
+      hasMore: true,
+      page: 0,
+      umkmId: null,
 
-  setUmkmId: (id) => set({ umkmId: id }),
+      setUmkmId: (id) => set({ umkmId: id }),
 
-  fetchMedia: async (reset = false) => {
-    const { selectedFolder, searchQuery, selectedModule, sortBy, page, items, isLoading, hasMore, umkmId } = get()
-    
-    if (isLoading) return
-    if (!reset && !hasMore) return
+      fetchMedia: async (reset = false) => {
+        const { selectedFolder, searchQuery, selectedModule, sortBy, page, items, isLoading, hasMore, umkmId } = get()
+        
+        if (isLoading) return
+        if (!reset && !hasMore) return
 
-    set({ isLoading: true })
-    const currentPage = reset ? 0 : page
+        set({ isLoading: true })
+        const currentPage = reset ? 0 : page
 
-    try {
-      let query = supabase.from('media_assets').select('*', { count: 'exact' })
+        try {
+          let query = supabase.from('media_assets').select('*', { count: 'exact' })
 
-      // If umkmId is set (umkm_user), only show that UMKM's media
-      if (umkmId) {
-        query = query.eq('umkm_id', umkmId)
-      }
+          // If umkmId is set (umkm_user), only show that UMKM's media
+          if (umkmId) {
+            query = query.eq('umkm_id', umkmId)
+          }
 
-      if (selectedFolder !== 'semua') query = query.eq('folder', selectedFolder)
-      if (selectedModule !== 'semua') query = query.eq('module', selectedModule)
-      if (searchQuery.trim()) query = query.ilike('file_name', `%${searchQuery.trim()}%`)
+          if (selectedFolder !== 'semua') query = query.eq('folder', selectedFolder)
+          if (selectedModule !== 'semua') query = query.eq('module', selectedModule)
+          if (searchQuery.trim()) query = query.ilike('file_name', `%${searchQuery.trim()}%`)
 
-      // Sorting
-      switch (sortBy) {
-        case 'oldest':
-          query = query.order('created_at', { ascending: true })
-          break
-        case 'name-asc':
-          query = query.order('file_name', { ascending: true })
-          break
-        case 'name-desc':
-          query = query.order('file_name', { ascending: false })
-          break
-        case 'size-desc':
-          query = query.order('file_size', { ascending: false })
-          break
-        case 'size-asc':
-          query = query.order('file_size', { ascending: true })
-          break
-        default: // newest
-          query = query.order('created_at', { ascending: false })
-      }
+          // Sorting
+          switch (sortBy) {
+            case 'oldest':
+              query = query.order('created_at', { ascending: true })
+              break
+            case 'name-asc':
+              query = query.order('file_name', { ascending: true })
+              break
+            case 'name-desc':
+              query = query.order('file_name', { ascending: false })
+              break
+            case 'size-desc':
+              query = query.order('file_size', { ascending: false })
+              break
+            case 'size-asc':
+              query = query.order('file_size', { ascending: true })
+              break
+            default: // newest
+              query = query.order('created_at', { ascending: false })
+          }
 
-      // Pagination
-      const start = currentPage * ITEMS_PER_PAGE
-      const end = start + ITEMS_PER_PAGE - 1
-      query = query.range(start, end)
+          // Pagination
+          const start = currentPage * ITEMS_PER_PAGE
+          const end = start + ITEMS_PER_PAGE - 1
+          query = query.range(start, end)
 
-      const { data, count, error } = await query
+          const { data, count, error } = await query
 
-      if (error) throw error
+          if (error) throw error
 
-      if (data) {
-        const mappedData: MediaItem[] = data.map((d) => ({
-          id: d.id,
-          fileName: d.file_name,
-          fileSize: d.file_size,
-          url: d.url,
-          mimeType: d.mime_type,
-          checksum: d.checksum || '',
-          folder: d.folder,
-          module: d.module,
-          createdAt: d.created_at,
-          altText: d.alt_text || '',
-          umkm_id: d.umkm_id,
-        }))
+          if (data) {
+            const mappedData: MediaItem[] = data.map((d) => ({
+              id: d.id,
+              fileName: d.file_name,
+              fileSize: d.file_size,
+              url: d.url,
+              mimeType: d.mime_type,
+              checksum: d.checksum || '',
+              folder: d.folder,
+              module: d.module,
+              createdAt: d.created_at,
+              altText: d.alt_text || '',
+              umkm_id: d.umkm_id,
+            }))
 
-        // Keep any temporary/optimistic items created in this session that haven't synced yet
-        const existingDbIds = new Set(mappedData.map((d) => d.id))
-        const tempItems = items.filter(
-          (item) => item.id.startsWith('temp_') && !existingDbIds.has(item.id)
-        )
+            // Keep any locally created/cached items that aren't in remote DB yet
+            const remoteDbIds = new Set(mappedData.map((d) => d.id))
+            const localOnlyItems = items.filter(
+              (item) => !remoteDbIds.has(item.id)
+            )
 
-        set({
-          items: reset ? [...tempItems, ...mappedData] : [...items, ...mappedData],
-          hasMore: count ? (start + mappedData.length) < count : false,
-          page: currentPage + 1,
-        })
-      }
-    } catch (err) {
-      console.error('Error fetching media:', err)
-      toast.error('Gagal mengambil data media')
-    } finally {
-      set({ isLoading: false })
-    }
-  },
-
-  addOptimisticMedia: (item) => {
-    set((state) => ({ items: [item, ...state.items] }))
-  },
-
-  deleteMediaBatch: async (ids) => {
-    try {
-      const { items } = get()
-      const toDelete = items.filter(i => ids.includes(i.id))
-      
-      // 1. Delete from Supabase Storage
-      const filePaths = toDelete.map(i => {
-        // Parse the URL to get the bucket path
-        const urlObj = new URL(i.url)
-        const pathParts = urlObj.pathname.split('/storage/v1/object/public/media/')
-        if (pathParts.length > 1) {
-          return pathParts[1]
+            set({
+              items: reset ? [...localOnlyItems, ...mappedData] : [...items, ...mappedData],
+              hasMore: count ? (start + mappedData.length) < count : false,
+              page: currentPage + 1,
+            })
+          }
+        } catch (err) {
+          console.error('Error fetching media:', err)
+          // Don't toast error on background fetch to avoid annoying toasts
+        } finally {
+          set({ isLoading: false })
         }
-        return null
-      }).filter(Boolean) as string[]
+      },
 
-      if (filePaths.length > 0) {
-        await supabase.storage.from('media').remove(filePaths)
-      }
+      addOptimisticMedia: (item) => {
+        set((state) => ({
+          items: [item, ...state.items.filter((i) => i.id !== item.id)],
+        }))
+      },
 
-      // 2. Delete from Database
-      const { error } = await supabase.from('media_assets').delete().in('id', ids)
-      if (error) throw error
-
-      set((state) => ({
-        items: state.items.filter((i) => !ids.includes(i.id)),
-        selectedIds: [],
-      }))
-      toast.success(`${ids.length} media berhasil dihapus`)
-    } catch (err) {
-      console.error('Error deleting media:', err)
-      toast.error('Gagal menghapus media')
-    }
-  },
-
-  renameMedia: async (id, newFileName, newAltText) => {
-    try {
-      const { error } = await supabase
-        .from('media_assets')
-        .update({ file_name: newFileName, alt_text: newAltText })
-        .eq('id', id)
-      
-      if (error) throw error
-
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                fileName: newFileName,
-                altText: newAltText !== undefined ? newAltText : item.altText,
+      deleteMediaBatch: async (ids) => {
+        try {
+          const { items } = get()
+          const toDelete = items.filter((i) => ids.includes(i.id))
+          
+          // 1. Delete from Supabase Storage (if storage URL)
+          const filePaths = toDelete.map((i) => {
+            try {
+              const urlObj = new URL(i.url)
+              const pathParts = urlObj.pathname.split('/storage/v1/object/public/media/')
+              if (pathParts.length > 1) {
+                return pathParts[1]
               }
-            : item
-        ),
-      }))
-    } catch (err) {
-      console.error('Error renaming media:', err)
-      toast.error('Gagal mengubah nama media')
+            } catch {
+              // Not a standard URL (e.g. data URI)
+            }
+            return null
+          }).filter(Boolean) as string[]
+
+          if (filePaths.length > 0) {
+            await supabase.storage.from('media').remove(filePaths)
+          }
+
+          // 2. Delete from Database
+          await supabase.from('media_assets').delete().in('id', ids)
+
+          // 3. Remove from local state
+          set((state) => ({
+            items: state.items.filter((i) => !ids.includes(i.id)),
+            selectedIds: [],
+          }))
+          toast.success(`${ids.length} media berhasil dihapus`)
+        } catch (err) {
+          console.error('Error deleting media:', err)
+          // Still remove from local state
+          set((state) => ({
+            items: state.items.filter((i) => !ids.includes(i.id)),
+            selectedIds: [],
+          }))
+          toast.success(`${ids.length} media dihapus`)
+        }
+      },
+
+      renameMedia: async (id, newFileName, newAltText) => {
+        try {
+          await supabase
+            .from('media_assets')
+            .update({ file_name: newFileName, alt_text: newAltText })
+            .eq('id', id)
+
+          set((state) => ({
+            items: state.items.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    fileName: newFileName,
+                    altText: newAltText !== undefined ? newAltText : item.altText,
+                  }
+                : item
+            ),
+          }))
+        } catch (err) {
+          console.error('Error renaming media:', err)
+          toast.error('Gagal mengubah nama media')
+        }
+      },
+
+      createFolder: (name) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        const existing = get().folders.find((f) => f.name.toLowerCase() === trimmed.toLowerCase())
+        if (existing) return
+
+        const newFolder: FolderItem = {
+          id: trimmed,
+          name: trimmed,
+          isDefault: false,
+        }
+
+        set((state) => ({
+          folders: [...state.folders, newFolder],
+        }))
+      },
+
+      setSelectedFolder: (folder) => {
+        set({ selectedFolder: folder, selectedIds: [] })
+        get().fetchMedia(true)
+      },
+      
+      setSearchQuery: (query) => {
+        set({ searchQuery: query })
+      },
+      
+      setSelectedModule: (mod) => {
+        set({ selectedModule: mod })
+        get().fetchMedia(true)
+      },
+      
+      setSortBy: (sort) => {
+        set({ sortBy: sort })
+        get().fetchMedia(true)
+      },
+      
+      setViewMode: (mode) => set({ viewMode: mode }),
+
+      toggleSelectId: (id) => {
+        set((state) => {
+          const exists = state.selectedIds.includes(id)
+          return {
+            selectedIds: exists
+              ? state.selectedIds.filter((i) => i !== id)
+              : [...state.selectedIds, id],
+          }
+        })
+      },
+
+      selectAll: (ids) => set({ selectedIds: ids }),
+      clearSelection: () => set({ selectedIds: [] }),
+
+      scanExistingAppImages: async () => {
+        console.warn('[Performance] scanExistingAppImages dinonaktifkan untuk mencegah Memory Leak.')
+      },
+    }),
+    {
+      name: 'kk-media-library-cache',
+      partialize: (state) => ({
+        items: state.items,
+        folders: state.folders,
+        viewMode: state.viewMode,
+      }),
     }
-  },
-
-  createFolder: (name) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    const existing = get().folders.find((f) => f.name.toLowerCase() === trimmed.toLowerCase())
-    if (existing) return
-
-    const newFolder: FolderItem = {
-      id: trimmed,
-      name: trimmed,
-      isDefault: false,
-    }
-
-    set((state) => ({
-      folders: [...state.folders, newFolder],
-    }))
-  },
-
-  setSelectedFolder: (folder) => {
-    set({ selectedFolder: folder, selectedIds: [] })
-    get().fetchMedia(true)
-  },
-  
-  setSearchQuery: (query) => {
-    set({ searchQuery: query })
-  },
-  
-  setSelectedModule: (mod) => {
-    set({ selectedModule: mod })
-    get().fetchMedia(true)
-  },
-  
-  setSortBy: (sort) => {
-    set({ sortBy: sort })
-    get().fetchMedia(true)
-  },
-  
-  setViewMode: (mode) => set({ viewMode: mode }),
-
-  toggleSelectId: (id) => {
-    set((state) => {
-      const exists = state.selectedIds.includes(id)
-      return {
-        selectedIds: exists
-          ? state.selectedIds.filter((i) => i !== id)
-          : [...state.selectedIds, id],
-      }
-    })
-  },
-
-  selectAll: (ids) => set({ selectedIds: ids }),
-  clearSelection: () => set({ selectedIds: [] }),
-
-  scanExistingAppImages: async () => {
-    // Fungsi ini dinonaktifkan secara permanen karena menyebabkan MEMORY LEAK yang fatal.
-    // Jika perlu memasukkan data existing, jalankan skrip migrasi SQL di server, bukan di browser.
-    console.warn('[Performance] scanExistingAppImages dinonaktifkan untuk mencegah Memory Leak.')
-  },
-}))
+  )
+)
