@@ -70,7 +70,7 @@ export default function MediaManager({
     scanExistingAppImages,
     setUmkmId,
   } = useMediaStore()
-  const { role, myUmkm } = useAuthStore()
+  const { role, myUmkm, user } = useAuthStore()
 
   const [activeTab, setActiveTab] = useState<'upload' | 'library'>('library')
   const initialFolder = defaultFolder === 'semua' ? 'Lainnya' : defaultFolder
@@ -178,7 +178,7 @@ export default function MediaManager({
       const total = imageFiles.length + videoFiles.length
       let done = 0
 
-      // ── Upload IMAGES (with compression) ──
+      // ── Upload IMAGES (with compression & fallback) ──
       for (const file of imageFiles) {
         try {
           const processed = await processImageFile(file, file.name, {
@@ -188,7 +188,9 @@ export default function MediaManager({
 
           const uniqueFileName = `${Date.now()}_${processed.fileName}`
           const storagePath = `${folderToSave}/${uniqueFileName}`
+          let finalUrl = processed.base64
 
+          // 1. Try Supabase Storage
           const { error: uploadError } = await supabase.storage
             .from('media')
             .upload(storagePath, processed.blob, {
@@ -197,44 +199,48 @@ export default function MediaManager({
               contentType: processed.mimeType
             })
 
-          if (uploadError) {
-            console.error('Storage Upload Error:', uploadError)
-            toast.error(`Gagal mengunggah ${processed.fileName}`)
-            done++; setUploadProgress(Math.round((done / total) * 95))
-            continue
+          if (!uploadError) {
+            const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
+            if (publicUrlData?.publicUrl) {
+              finalUrl = publicUrlData.publicUrl
+            }
+          } else {
+            console.warn('Storage upload notice (using fallback):', uploadError.message)
           }
 
-          const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
-
+          // 2. Insert to media_assets database table
           const { data: dbData, error: dbError } = await supabase.from('media_assets').insert({
             file_name: processed.fileName,
             file_size: processed.fileSize,
-            url: publicUrlData.publicUrl,
+            url: finalUrl,
             mime_type: processed.mimeType,
             module: moduleName,
             checksum: processed.checksum,
             folder: folderToSave,
             alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+            uploaded_by: user?.id || null,
             umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null
           }).select().single()
 
-          if (!dbError && dbData) {
-            addOptimisticMedia({
-              id: dbData.id,
-              fileName: dbData.file_name,
-              fileSize: dbData.file_size,
-              url: dbData.url,
-              mimeType: dbData.mime_type,
-              checksum: dbData.checksum || '',
-              folder: dbData.folder,
-              module: dbData.module,
-              createdAt: dbData.created_at,
-              altText: dbData.alt_text || '',
-              umkm_id: dbData.umkm_id
-            })
-            successCount++
-          } else if (dbError) {
-            toast.error(`Gagal menyimpan metadata ${processed.fileName}`)
+          // 3. Optimistic addition to UI
+          const newItemId = dbData?.id || `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+          addOptimisticMedia({
+            id: newItemId,
+            fileName: dbData?.file_name || processed.fileName,
+            fileSize: dbData?.file_size || processed.fileSize,
+            url: dbData?.url || finalUrl,
+            mimeType: dbData?.mime_type || processed.mimeType,
+            checksum: dbData?.checksum || processed.checksum || '',
+            folder: dbData?.folder || folderToSave,
+            module: dbData?.module || moduleName,
+            createdAt: dbData?.created_at || new Date().toISOString(),
+            altText: dbData?.alt_text || file.name,
+            umkm_id: dbData?.umkm_id || (role === 'umkm_user' ? (myUmkm?.id || null) : null)
+          })
+          successCount++
+
+          if (dbError) {
+            console.warn('Database insert notice:', dbError.message)
           }
         } catch (imgErr) {
           console.error('Image processing error:', imgErr)

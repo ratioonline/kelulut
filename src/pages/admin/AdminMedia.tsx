@@ -4,7 +4,7 @@ import Button from '../../components/ui/Button'
 import MediaManager from '../../components/media/MediaManager'
 
 export default function AdminMedia() {
-  const [openManager, setOpenManager] = useState(true)
+  const [openManagerModal, setOpenManagerModal] = useState(false)
 
   return (
     <div className="space-y-6">
@@ -20,8 +20,8 @@ export default function AdminMedia() {
           </p>
         </div>
 
-        <Button onClick={() => setOpenManager(true)}>
-          <Plus size={18} /> Kelola Media
+        <Button onClick={() => setOpenManagerModal(true)}>
+          <Plus size={18} /> Kelola Media (Popup)
         </Button>
       </div>
 
@@ -33,6 +33,16 @@ export default function AdminMedia() {
           moduleName="Media Library"
         />
       </div>
+
+      {/* Popup Modal if user clicks top button */}
+      {openManagerModal && (
+        <MediaManager
+          isOpen={openManagerModal}
+          onClose={() => setOpenManagerModal(false)}
+          defaultFolder="semua"
+          moduleName="Media Library"
+        />
+      )}
     </div>
   )
 }
