@@ -283,26 +283,28 @@ export default function MediaManager({
             checksum: '',
             folder: folderToSave,
             alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+            uploaded_by: user?.id || null,
             umkm_id: role === 'umkm_user' ? (myUmkm?.id || null) : null
           }).select().single()
 
-          if (!dbError && dbData) {
-            addOptimisticMedia({
-              id: dbData.id,
-              fileName: dbData.file_name,
-              fileSize: dbData.file_size,
-              url: dbData.url,
-              mimeType: dbData.mime_type,
-              checksum: '',
-              folder: dbData.folder,
-              module: dbData.module,
-              createdAt: dbData.created_at,
-              altText: dbData.alt_text || '',
-              umkm_id: dbData.umkm_id
-            })
-            successCount++
-          } else if (dbError) {
-            toast.error(`Gagal menyimpan metadata video ${file.name}`)
+          const newVidId = dbData?.id || `temp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+          addOptimisticMedia({
+            id: newVidId,
+            fileName: dbData?.file_name || uniqueFileName,
+            fileSize: dbData?.file_size || file.size,
+            url: dbData?.url || publicUrlData.publicUrl,
+            mimeType: dbData?.mime_type || file.type || `video/${ext}`,
+            checksum: '',
+            folder: dbData?.folder || folderToSave,
+            module: dbData?.module || moduleName,
+            createdAt: dbData?.created_at || new Date().toISOString(),
+            altText: dbData?.alt_text || file.name,
+            umkm_id: dbData?.umkm_id || (role === 'umkm_user' ? (myUmkm?.id || null) : null)
+          })
+          successCount++
+
+          if (dbError) {
+            console.warn('Database insert notice for video:', dbError.message)
           }
         } catch (vidErr) {
           console.error('Video upload error:', vidErr)

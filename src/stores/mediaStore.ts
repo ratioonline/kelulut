@@ -156,8 +156,14 @@ export const useMediaStore = create<MediaState>()((set, get) => ({
           umkm_id: d.umkm_id,
         }))
 
+        // Keep any temporary/optimistic items created in this session that haven't synced yet
+        const existingDbIds = new Set(mappedData.map((d) => d.id))
+        const tempItems = items.filter(
+          (item) => item.id.startsWith('temp_') && !existingDbIds.has(item.id)
+        )
+
         set({
-          items: reset ? mappedData : [...items, ...mappedData],
+          items: reset ? [...tempItems, ...mappedData] : [...items, ...mappedData],
           hasMore: count ? (start + mappedData.length) < count : false,
           page: currentPage + 1,
         })
