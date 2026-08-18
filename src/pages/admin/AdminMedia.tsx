@@ -1,11 +1,7 @@
-import { useState } from 'react'
-import { Images, Plus } from 'lucide-react'
-import Button from '../../components/ui/Button'
+import { Images } from 'lucide-react'
 import MediaManager from '../../components/media/MediaManager'
 
 export default function AdminMedia() {
-  const [openManagerModal, setOpenManagerModal] = useState(false)
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -19,10 +15,6 @@ export default function AdminMedia() {
             Kelola seluruh aset gambar, dokumen, dan media di seluruh sistem Kebun Kelulut Sangatta.
           </p>
         </div>
-
-        <Button onClick={() => setOpenManagerModal(true)}>
-          <Plus size={18} /> Kelola Media (Popup)
-        </Button>
       </div>
 
       {/* Embedded Media Manager */}
@@ -33,16 +25,6 @@ export default function AdminMedia() {
           moduleName="Media Library"
         />
       </div>
-
-      {/* Popup Modal if user clicks top button */}
-      {openManagerModal && (
-        <MediaManager
-          isOpen={openManagerModal}
-          onClose={() => setOpenManagerModal(false)}
-          defaultFolder="semua"
-          moduleName="Media Library"
-        />
-      )}
     </div>
   )
 }
