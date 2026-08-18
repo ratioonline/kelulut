@@ -14,6 +14,7 @@ import {
   Store,
   Users,
   Building2,
+  Camera,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useAuthStore } from '../../stores/authStore'
@@ -46,6 +47,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/admin/artikel', icon: FileText, label: 'Artikel', roles: ['super_admin', 'proktor', 'umkm_user'] },
       { to: '/admin/galeri', icon: Images, label: 'Galeri', roles: ['super_admin', 'proktor', 'umkm_user'] },
+      { to: '/admin/umkm-galeri', icon: Camera, label: 'Foto Toko', roles: ['umkm_user', 'super_admin', 'proktor'] },
       { to: '/admin/hero', icon: LayoutTemplate, label: 'Hero Slider', roles: ['super_admin', 'proktor'] },
       { to: '/admin/media', icon: Images, label: 'Media Library', roles: ['super_admin', 'proktor'] },
       { to: '/admin/program', icon: BookOpen, label: 'Program', roles: ['super_admin', 'proktor'] },

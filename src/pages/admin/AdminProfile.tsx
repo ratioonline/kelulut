@@ -128,9 +128,10 @@ export default function AdminProfile() {
               )}
               <div className="absolute top-4 right-4">
                 <MediaPickerButton
-                  value={coverImage}
+                  value={coverImage ?? undefined}
                   onChange={setCoverImage}
-                  buttonText={coverImage ? "Ganti Cover" : "Upload Cover"}
+                  folder="UMKM"
+                  moduleName="UMKM"
                 />
               </div>
             </div>
@@ -147,10 +148,10 @@ export default function AdminProfile() {
                   )}
                   <div className="mt-2 text-center">
                     <MediaPickerButton
-                      value={logo}
+                      value={logo ?? undefined}
                       onChange={setLogo}
-                      buttonText={logo ? "Ganti Logo" : "Upload Logo"}
-                      size="sm"
+                      folder="UMKM"
+                      moduleName="UMKM"
                     />
                   </div>
                 </div>
