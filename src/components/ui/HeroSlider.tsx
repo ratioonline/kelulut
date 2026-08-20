@@ -6,6 +6,33 @@ import type { HeroSlide } from '../../types/database'
 import { cn } from '../../lib/utils'
 
 const AUTOPLAY_DELAY = 5500 // ms
+const CACHE_KEY = 'hero_slides_cache'
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours TTL
+
+interface HeroCacheData {
+  slides: HeroSlide[]
+  timestamp: number
+}
+
+function getInitialCachedSlides(): { slides: HeroSlide[]; hasValidCache: boolean } {
+  if (typeof window === 'undefined') {
+    return { slides: [], hasValidCache: false }
+  }
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return { slides: [], hasValidCache: false }
+    const parsed: HeroCacheData = JSON.parse(raw)
+    if (parsed && Array.isArray(parsed.slides) && parsed.slides.length > 0) {
+      const isFresh = Date.now() - (parsed.timestamp || 0) < CACHE_TTL_MS
+      if (isFresh) {
+        return { slides: parsed.slides, hasValidCache: true }
+      }
+    }
+  } catch {
+    // Ignore JSON parse error
+  }
+  return { slides: [], hasValidCache: false }
+}
 
 const DEFAULT_SLIDES: HeroSlide[] = [
   {
@@ -53,15 +80,18 @@ const DEFAULT_SLIDES: HeroSlide[] = [
 ]
 
 export default function HeroSlider() {
-  const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_SLIDES)
+  const cached = useRef(getInitialCachedSlides())
+  const [slides, setSlides] = useState<HeroSlide[]>(() => cached.current.slides)
+  const [loading, setLoading] = useState<boolean>(() => !cached.current.hasValidCache)
   const [current, setCurrent] = useState(0)
   const [animating, setAnimating] = useState(false)
   const [loaded, setLoaded] = useState<Record<number, boolean>>({})
   const [renderedSlides, setRenderedSlides] = useState<Set<number>>(() => new Set([0]))
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Fetch slides dari Supabase di latar belakang (non-blocking)
+  // Fetch slides dari Supabase di background (stale-while-revalidate)
   useEffect(() => {
+    let isMounted = true
     const fetchSlides = async () => {
       try {
         const { data, error } = await supabase
@@ -70,14 +100,35 @@ export default function HeroSlider() {
           .eq('is_active', true)
           .order('sort_order', { ascending: true })
 
+        if (!isMounted) return
+
         if (!error && data && data.length > 0) {
-          setSlides(data as HeroSlide[])
+          const freshSlides = data as HeroSlide[]
+          setSlides(freshSlides)
+          try {
+            localStorage.setItem(
+              CACHE_KEY,
+              JSON.stringify({ slides: freshSlides, timestamp: Date.now() })
+            )
+          } catch {
+            // Ignore localStorage errors
+          }
+        } else if (!cached.current.hasValidCache) {
+          setSlides(DEFAULT_SLIDES)
         }
       } catch (err) {
-        // Tetap menggunakan DEFAULT_SLIDES jika query gagal / offline
+        if (!isMounted) return
+        if (!cached.current.hasValidCache) {
+          setSlides(DEFAULT_SLIDES)
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
     fetchSlides()
+    return () => { isMounted = false }
   }, [])
 
   const rawActiveSlides = slides.filter((s) => s.is_active)
@@ -145,6 +196,28 @@ export default function HeroSlider() {
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = touchStartX.current - e.changedTouches[0].clientX
     if (Math.abs(diff) > 50) diff > 0 ? next() : prev()
+  }
+
+  if (loading) {
+    return (
+      <section
+        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#1B4332]"
+        aria-label="Memuat slider hero"
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-[#1B4332]/85 via-[#1B4332]/65 to-[#1B4332]/90" />
+        <div className="relative z-20 text-center px-4 max-w-4xl mx-auto w-full flex flex-col items-center animate-pulse">
+          <div className="h-8 w-52 bg-white/15 rounded-full mb-6" />
+          <div className="h-12 md:h-16 w-3/4 max-w-xl bg-white/15 rounded-2xl mb-3" />
+          <div className="h-12 md:h-16 w-1/2 max-w-md bg-white/15 rounded-2xl mb-6" />
+          <div className="h-4 w-full max-w-lg bg-white/15 rounded mb-2" />
+          <div className="h-4 w-2/3 max-w-md bg-white/15 rounded mb-10" />
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="h-14 w-44 bg-white/15 rounded-2xl" />
+            <div className="h-14 w-40 bg-white/15 rounded-2xl" />
+          </div>
+        </div>
+      </section>
+    )
   }
 
   const slide = activeSlides[current] ?? activeSlides[0]

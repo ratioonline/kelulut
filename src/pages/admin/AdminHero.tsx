@@ -128,6 +128,7 @@ export default function AdminHero() {
       if (error) { toast.error('Gagal menambah slide'); return }
       toast.success('Slide berhasil ditambahkan')
     }
+    try { localStorage.removeItem('hero_slides_cache') } catch {}
     setModalOpen(false)
     await fetchData()
   }
@@ -137,7 +138,11 @@ export default function AdminHero() {
     setDeleting(true)
     const { error } = await supabase.from('hero_slides').delete().eq('id', deleteTarget.id)
     if (error) { toast.error('Gagal menghapus slide') }
-    else { toast.success('Slide berhasil dihapus'); await fetchData() }
+    else {
+      try { localStorage.removeItem('hero_slides_cache') } catch {}
+      toast.success('Slide berhasil dihapus')
+      await fetchData()
+    }
     setDeleting(false)
     setDeleteTarget(null)
   }
@@ -147,6 +152,7 @@ export default function AdminHero() {
     const { error } = await supabase.from('hero_slides').update({ is_active: !slide.is_active } as any).eq('id', slide.id)
     if (error) toast.error('Gagal mengubah status')
     else {
+      try { localStorage.removeItem('hero_slides_cache') } catch {}
       toast.success(slide.is_active ? 'Slide dinonaktifkan' : 'Slide diaktifkan')
       await fetchData()
     }
@@ -166,6 +172,7 @@ export default function AdminHero() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase.from('hero_slides').update({ sort_order: a.sort_order } as any).eq('id', b.id),
     ])
+    try { localStorage.removeItem('hero_slides_cache') } catch {}
     await fetchData()
   }
 
@@ -366,10 +373,6 @@ export default function AdminHero() {
               error={errors.title?.message}
               {...register('title')}
             />
-            <p className="text-xs text-gray-400 mt-1">
-              Opsional. Gunakan <code className="bg-gray-100 px-1 rounded">\n</code> di tengah judul untuk membuat baris kedua berwarna emas.
-              Contoh: <code className="bg-gray-100 px-1 rounded">Temukan Keajaiban\nLebah Kelulut</code>
-            </p>
           </div>
 
           {/* Subtitle */}
