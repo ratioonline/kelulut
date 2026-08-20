@@ -475,6 +475,7 @@ export default function AdminHero() {
                   folder="Banner"
                   moduleName="Hero Slider"
                   accept="video/mp4,video/webm"
+                  uploadToStorage={true}
                 />
                 <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
                   Format yang didukung: <strong>.mp4</strong> atau <strong>.webm</strong> (1080p/720p, durasi loop 8–15 detik, ukuran &lt; 10 MB disarankan).
@@ -489,6 +490,7 @@ export default function AdminHero() {
                   folder="Banner"
                   moduleName="Hero Slider"
                   accept="image/*,image/svg+xml"
+                  uploadToStorage={true}
                 />
                 <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
                   Gambar yang tampil seketika saat video sedang buffering atau di perangkat mode hemat daya.

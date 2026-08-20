@@ -3,6 +3,7 @@ import { Images, X, Clipboard, Upload } from 'lucide-react'
 import MediaManager from './MediaManager'
 import { MediaItem } from '../../stores/mediaStore'
 import toast from 'react-hot-toast'
+import { supabase } from '../../lib/supabase'
 
 interface MediaPickerButtonProps {
   value?: string
@@ -13,6 +14,7 @@ interface MediaPickerButtonProps {
   moduleName?: string
   className?: string
   accept?: string
+  uploadToStorage?: boolean
 }
 
 // ── Convert File/Blob to base64 data URL ──
@@ -59,13 +61,14 @@ export default function MediaPickerButton({
   moduleName = 'Lainnya',
   className,
   accept,
+  uploadToStorage = false,
 }: MediaPickerButtonProps) {
   const [managerOpen, setManagerOpen] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // ── Process any file → base64 (images compressed, videos raw) ──
+  // ── Process any file → base64 or upload to storage ──
   const processFile = async (file: File) => {
     const isImage = file.type.startsWith('image/') || file.type.includes('svg')
     const isVideo = file.type.startsWith('video/')
@@ -74,24 +77,81 @@ export default function MediaPickerButton({
       toast.error(`Format tidak didukung: ${file.type || file.name}`)
       return
     }
-    if (isVideo && file.size > 50 * 1024 * 1024) {
+
+    if (isVideo && !uploadToStorage && file.size > 50 * 1024 * 1024) {
       toast.error('Video melebihi batas 50 MB untuk preview langsung. Gunakan Media Library.')
+      return
+    }
+    if (isVideo && uploadToStorage && file.size > 200 * 1024 * 1024) {
+      toast.error(`Video ${file.name} melebihi batas 200 MB.`)
       return
     }
 
     setProcessing(true)
+    const toastId = uploadToStorage ? toast.loading(`Mengunggah ${file.name}...`) : undefined
+
     try {
-      let base64: string
-      if (isImage) {
-        base64 = await compressImage(file)
+      if (uploadToStorage) {
+        let blobToUpload: Blob = file
+        let contentType = file.type
+        let uploadFileName = file.name
+
+        // Compress image before upload, but keep video as is
+        if (isImage && !file.type.includes('svg')) {
+           const base64 = await compressImage(file)
+           const res = await fetch(base64)
+           blobToUpload = await res.blob()
+           contentType = 'image/webp'
+           uploadFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp"
+        }
+
+        const ext = uploadFileName.split('.').pop() || (isVideo ? 'mp4' : 'webp')
+        const baseName = uploadFileName.replace(/[^a-z0-9._-]/gi, '_')
+        const uniqueFileName = `${Date.now()}_${baseName}`
+        const storagePath = `${folder}/${uniqueFileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('media')
+          .upload(storagePath, blobToUpload, {
+            cacheControl: '31536000',
+            upsert: false,
+            contentType: contentType
+          })
+
+        if (uploadError) throw uploadError
+
+        const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(storagePath)
+        const finalUrl = publicUrlData.publicUrl
+
+        // Insert to media_assets silently
+        await supabase.from('media_assets').insert({
+            file_name: uniqueFileName,
+            file_size: blobToUpload.size,
+            url: finalUrl,
+            mime_type: contentType,
+            module: moduleName,
+            folder: folder,
+            alt_text: file.name.substring(0, file.name.lastIndexOf('.')) || file.name,
+        })
+
+        onChange(finalUrl)
+        if (toastId) toast.success('Berhasil diunggah ✅', { id: toastId })
+        else toast.success('File siap digunakan ✅')
+
       } else {
-        base64 = await fileToBase64(file)
+        let base64: string
+        if (isImage) {
+          base64 = await compressImage(file)
+        } else {
+          base64 = await fileToBase64(file)
+        }
+        onChange(base64)
+        toast.success('File siap digunakan ✅')
       }
-      onChange(base64)
-      toast.success('File siap digunakan ✅')
     } catch (err) {
       console.error(err)
-      toast.error('Gagal memproses file')
+      if (toastId) toast.error('Gagal mengunggah file. Silakan coba lagi.', { id: toastId })
+      else toast.error('Gagal memproses file')
     } finally {
       setProcessing(false)
     }
