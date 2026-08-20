@@ -5,6 +5,7 @@ import { z } from 'zod'
 import {
   Plus, Pencil, Trash2, ToggleLeft, ToggleRight,
   ArrowUp, ArrowDown, Eye, GripVertical, Monitor,
+  Image as ImageIcon, Film, Play,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { HeroSlide } from '../../types/database'
@@ -39,8 +40,14 @@ export default function AdminHero() {
   const [editing, setEditing]       = useState<HeroSlide | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<HeroSlide | null>(null)
   const [deleting, setDeleting]     = useState(false)
+
+  // Hybrid media state
+  const [mediaType, setMediaType]   = useState<'image' | 'video'>('image')
   const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl]     = useState<string | null>(null)
+  const [posterUrl, setPosterUrl]   = useState<string | null>(null)
   const [imageError, setImageError] = useState('')
+  const [videoError, setVideoError] = useState('')
 
   const fetchData = async () => {
     const { data } = await supabase
@@ -63,8 +70,12 @@ export default function AdminHero() {
 
   const openCreate = () => {
     setEditing(null)
+    setMediaType('image')
     setImageBase64(null)
+    setVideoUrl(null)
+    setPosterUrl(null)
     setImageError('')
+    setVideoError('')
     reset({
       title: '',
       subtitle: '',
@@ -81,8 +92,13 @@ export default function AdminHero() {
 
   const openEdit = (slide: HeroSlide) => {
     setEditing(slide)
-    setImageBase64(slide.image_url)
+    const isVideo = slide.media_type === 'video' || Boolean(slide.video_url)
+    setMediaType(isVideo ? 'video' : 'image')
+    setImageBase64(slide.image_url ?? null)
+    setVideoUrl(slide.video_url ?? null)
+    setPosterUrl(slide.poster_url ?? null)
     setImageError('')
+    setVideoError('')
     reset({
       title:               slide.title ?? '',
       subtitle:            slide.subtitle ?? '',
@@ -98,16 +114,28 @@ export default function AdminHero() {
   }
 
   const onSubmit = async (data: FormData) => {
-    if (!imageBase64) {
-      setImageError('Foto background wajib diupload')
-      return
+    if (mediaType === 'image') {
+      if (!imageBase64) {
+        setImageError('Foto background wajib diupload / dipilih')
+        return
+      }
+    } else {
+      if (!videoUrl) {
+        setVideoError('File video wajib diupload / dipilih')
+        return
+      }
     }
+
     setImageError('')
+    setVideoError('')
 
     const payload = {
       title:               data.title?.trim() || null,
       subtitle:            data.subtitle?.trim() || null,
-      image_url:           imageBase64,
+      media_type:          mediaType,
+      image_url:           mediaType === 'image' ? imageBase64! : (posterUrl || videoUrl!),
+      video_url:           mediaType === 'video' ? videoUrl : null,
+      poster_url:          mediaType === 'video' ? (posterUrl || null) : null,
       badge_text:          data.badge_text?.trim() || null,
       cta_primary_label:   data.cta_primary_label?.trim() || null,
       cta_primary_url:     data.cta_primary_url?.trim() || null,
@@ -183,7 +211,7 @@ export default function AdminHero() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Hero Slider</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Kelola slide background pada halaman beranda.
+            Kelola background foto dan video cinematic pada halaman beranda.
           </p>
         </div>
         <Button onClick={openCreate} size="sm">
@@ -192,11 +220,10 @@ export default function AdminHero() {
       </div>
 
       {/* Info */}
-      <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
-        <Monitor size={16} className="shrink-0 mt-0.5" />
+      <div className="flex items-start gap-3 bg-emerald-50/80 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-900">
+        <Monitor size={16} className="shrink-0 mt-0.5 text-emerald-700" />
         <span>
-          Slide yang aktif akan tampil berganti-ganti otomatis di halaman beranda. Urutan bisa diatur dengan tombol ↑↓.
-          Gunakan foto beresolusi tinggi minimal <strong>1280 × 720px</strong> agar tampilannya optimal.
+          Mendukung media <strong>Foto / Gambar</strong> dan <strong>Video Cinematic</strong>. Slide yang aktif akan tampil berganti-ganti di halaman beranda. Urutan bisa diatur dengan tombol ↑↓.
         </span>
       </div>
 
@@ -210,131 +237,160 @@ export default function AdminHero() {
         </div>
       ) : (
         <div className="space-y-4">
-          {[...slides].sort((a, b) => a.sort_order - b.sort_order).map((slide, idx, arr) => (
-            <Card key={slide.id} className="overflow-hidden">
-              <div className="flex flex-col sm:flex-row">
-                {/* Thumbnail */}
-                <div className="relative sm:w-64 h-40 sm:h-auto shrink-0 overflow-hidden bg-gray-100">
-                  <img
-                    src={slide.image_url}
-                    alt={slide.title || 'Slide'}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  {/* Order badge */}
-                  <div className="absolute top-2 left-2 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center text-xs font-bold text-gray-800">
-                    {idx + 1}
-                  </div>
-                  {/* Status badge */}
-                  <div className="absolute top-2 right-2">
-                    <Badge variant={slide.is_active ? 'green' : 'gray'}>
-                      {slide.is_active ? 'Aktif' : 'Nonaktif'}
-                    </Badge>
-                  </div>
-                  {/* Title overlay */}
-                  <div className="absolute bottom-2 left-2 right-2">
-                    <p className="text-white text-xs font-bold line-clamp-2 leading-tight">
-                      {slide.title ? slide.title.replace('\n', ' ') : <span className="opacity-75 italic">(Tanpa Judul)</span>}
-                    </p>
-                  </div>
-                </div>
+          {[...slides].sort((a, b) => a.sort_order - b.sort_order).map((slide, idx, arr) => {
+            const isVideo = slide.media_type === 'video' || Boolean(slide.video_url)
+            return (
+              <Card key={slide.id} className="overflow-hidden">
+                <div className="flex flex-col sm:flex-row">
+                  {/* Thumbnail */}
+                  <div className="relative sm:w-64 h-40 sm:h-auto shrink-0 overflow-hidden bg-gray-950 flex items-center justify-center">
+                    {isVideo ? (
+                      <>
+                        <video
+                          src={slide.video_url || slide.image_url}
+                          poster={slide.poster_url || undefined}
+                          className="w-full h-full object-cover opacity-80"
+                          muted
+                          playsInline
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="w-9 h-9 rounded-full bg-black/60 backdrop-blur-xs flex items-center justify-center text-white/90 shadow-md">
+                            <Play size={15} className="ml-0.5" />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <img
+                        src={slide.image_url}
+                        alt={slide.title || 'Slide'}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30 pointer-events-none" />
+                    
+                    {/* Order badge */}
+                    <div className="absolute top-2 left-2 w-7 h-7 bg-white/95 rounded-full flex items-center justify-center text-xs font-bold text-gray-800 shadow-sm">
+                      {idx + 1}
+                    </div>
 
-                {/* Info */}
-                <CardBody className="flex-1 flex flex-col justify-between gap-4">
-                  <div className="space-y-1">
-                    {slide.badge_text && (
-                      <span className="text-xs text-[#F5A623] font-semibold">{slide.badge_text}</span>
-                    )}
-                    <h3 className="font-bold text-gray-900 leading-snug">
-                      {slide.title ? slide.title.replace('\n', ' · ') : <span className="text-gray-400 font-normal italic">(Tanpa Judul)</span>}
-                    </h3>
-                    {slide.subtitle && (
-                      <p className="text-sm text-gray-500 line-clamp-2">{slide.subtitle}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {slide.cta_primary_label && (
-                        <span className="text-xs bg-[#2D6A4F]/10 text-[#2D6A4F] px-2 py-0.5 rounded-md font-medium">
-                          CTA 1: {slide.cta_primary_label}
-                        </span>
-                      )}
-                      {slide.cta_secondary_label && (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
-                          CTA 2: {slide.cta_secondary_label}
-                        </span>
-                      )}
+                    {/* Media Type Badge */}
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shadow-xs flex items-center gap-1 ${
+                        isVideo ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white'
+                      }`}>
+                        {isVideo ? <Film size={11} /> : <ImageIcon size={11} />}
+                        {isVideo ? 'Video' : 'Foto'}
+                      </span>
+                      <Badge variant={slide.is_active ? 'green' : 'gray'}>
+                        {slide.is_active ? 'Aktif' : 'Nonaktif'}
+                      </Badge>
+                    </div>
+
+                    {/* Title overlay */}
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <p className="text-white text-xs font-bold line-clamp-2 leading-tight drop-shadow-sm">
+                        {slide.title ? slide.title.replace('\n', ' ') : <span className="opacity-75 italic">(Tanpa Judul)</span>}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 flex-wrap border-t border-gray-100 pt-3">
-                    {/* Order controls */}
-                    <button
-                      onClick={() => moveOrder(slide, 'up')}
-                      disabled={idx === 0}
-                      className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 transition-colors"
-                      title="Pindah ke atas"
-                    >
-                      <ArrowUp size={15} />
-                    </button>
-                    <button
-                      onClick={() => moveOrder(slide, 'down')}
-                      disabled={idx === arr.length - 1}
-                      className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 transition-colors"
-                      title="Pindah ke bawah"
-                    >
-                      <ArrowDown size={15} />
-                    </button>
+                  {/* Info */}
+                  <CardBody className="flex-1 flex flex-col justify-between gap-4">
+                    <div className="space-y-1">
+                      {slide.badge_text && (
+                        <span className="text-xs text-[#F5A623] font-semibold">{slide.badge_text}</span>
+                      )}
+                      <h3 className="font-bold text-gray-900 leading-snug">
+                        {slide.title ? slide.title.replace('\n', ' · ') : <span className="text-gray-400 font-normal italic">(Tanpa Judul)</span>}
+                      </h3>
+                      {slide.subtitle && (
+                        <p className="text-sm text-gray-500 line-clamp-2">{slide.subtitle}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {slide.cta_primary_label && (
+                          <span className="text-xs bg-[#2D6A4F]/10 text-[#2D6A4F] px-2 py-0.5 rounded-md font-medium">
+                            CTA 1: {slide.cta_primary_label}
+                          </span>
+                        )}
+                        {slide.cta_secondary_label && (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-medium">
+                            CTA 2: {slide.cta_secondary_label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
 
-                    <span className="w-px h-5 bg-gray-200 mx-1" />
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 flex-wrap border-t border-gray-100 pt-3">
+                      {/* Order controls */}
+                      <button
+                        onClick={() => moveOrder(slide, 'up')}
+                        disabled={idx === 0}
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 transition-colors"
+                        title="Pindah ke atas"
+                      >
+                        <ArrowUp size={15} />
+                      </button>
+                      <button
+                        onClick={() => moveOrder(slide, 'down')}
+                        disabled={idx === arr.length - 1}
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30 transition-colors"
+                        title="Pindah ke bawah"
+                      >
+                        <ArrowDown size={15} />
+                      </button>
 
-                    {/* Preview */}
-                    <button
-                      onClick={() => setPreviewSlide(slide)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                      title="Preview slide"
-                    >
-                      <Eye size={15} />
-                    </button>
+                      <span className="w-px h-5 bg-gray-200 mx-1" />
 
-                    {/* Toggle active */}
-                    <button
-                      onClick={() => toggleActive(slide)}
-                      className={`p-1.5 rounded-lg transition-colors ${
-                        slide.is_active
-                          ? 'text-green-500 hover:bg-green-50'
-                          : 'text-gray-400 hover:bg-gray-100'
-                      }`}
-                      title={slide.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-                    >
-                      {slide.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                    </button>
+                      {/* Preview */}
+                      <button
+                        onClick={() => setPreviewSlide(slide)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        title="Preview slide"
+                      >
+                        <Eye size={15} />
+                      </button>
 
-                    {/* Edit */}
-                    <button
-                      onClick={() => openEdit(slide)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                      title="Edit slide"
-                    >
-                      <Pencil size={15} />
-                    </button>
+                      {/* Toggle active */}
+                      <button
+                        onClick={() => toggleActive(slide)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          slide.is_active
+                            ? 'text-green-500 hover:bg-green-50'
+                            : 'text-gray-400 hover:bg-gray-100'
+                        }`}
+                        title={slide.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+                      >
+                        {slide.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                      </button>
 
-                    {/* Delete */}
-                    <button
-                      onClick={() => setDeleteTarget(slide)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                      title="Hapus slide"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                      {/* Edit */}
+                      <button
+                        onClick={() => openEdit(slide)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        title="Edit slide"
+                      >
+                        <Pencil size={15} />
+                      </button>
 
-                    <span className="ml-auto text-xs text-gray-400 flex items-center gap-1">
-                      <GripVertical size={13} /> Urutan: {slide.sort_order}
-                    </span>
-                  </div>
-                </CardBody>
-              </div>
-            </Card>
-          ))}
+                      {/* Delete */}
+                      <button
+                        onClick={() => setDeleteTarget(slide)}
+                        className="p-1.5 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        title="Hapus slide"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+
+                      <span className="ml-auto text-xs text-gray-400 flex items-center gap-1">
+                        <GripVertical size={13} /> Urutan: {slide.sort_order}
+                      </span>
+                    </div>
+                  </CardBody>
+                </div>
+              </Card>
+            )
+          })}
         </div>
       )}
 
@@ -355,35 +411,116 @@ export default function AdminHero() {
       >
         <form id="hero-form" onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
-          {/* Background image */}
-          <MediaPickerButton
-            label="Foto Background Hero Banner"
-            value={imageBase64 ?? undefined}
-            onChange={(v) => { setImageBase64(v); if (v) setImageError('') }}
-            error={imageError}
-            folder="Banner"
-            moduleName="Hero Slider"
-          />
+          {/* Media Type Selector */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold text-gray-800">Tipe Media Banner</label>
+            <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setMediaType('image')
+                  setVideoError('')
+                }}
+                className={`py-2.5 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  mediaType === 'image'
+                    ? 'bg-white text-[#2D6A4F] shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <ImageIcon size={15} />
+                <span>Foto / Gambar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMediaType('video')
+                  setImageError('')
+                }}
+                className={`py-2.5 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                  mediaType === 'video'
+                    ? 'bg-white text-[#2D6A4F] shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <Film size={15} />
+                <span>Video Cinematic</span>
+              </button>
+            </div>
+          </div>
 
-          {/* Title */}
+          {/* Media Pickers */}
+          {mediaType === 'image' ? (
+            <div>
+              <MediaPickerButton
+                label="Foto Background Hero Banner"
+                value={imageBase64 ?? undefined}
+                onChange={(v) => { setImageBase64(v); if (v) setImageError('') }}
+                error={imageError}
+                folder="Banner"
+                moduleName="Hero Slider"
+                accept="image/*,image/svg+xml"
+              />
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Gunakan gambar beresolusi tinggi minimal <strong>1280 × 720px</strong> (format .webp, .jpg, atau .png).
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100">
+              <div>
+                <MediaPickerButton
+                  label="File Video Cinematic (MP4 / WebM)"
+                  value={videoUrl ?? undefined}
+                  onChange={(v) => { setVideoUrl(v); if (v) setVideoError('') }}
+                  error={videoError}
+                  folder="Banner"
+                  moduleName="Hero Slider"
+                  accept="video/mp4,video/webm"
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+                  Format yang didukung: <strong>.mp4</strong> atau <strong>.webm</strong> (1080p/720p, durasi loop 8–15 detik, ukuran &lt; 10 MB disarankan).
+                </p>
+              </div>
+
+              <div>
+                <MediaPickerButton
+                  label="Poster / Cover Video (Gambar Cadangan / Fallback)"
+                  value={posterUrl ?? undefined}
+                  onChange={(v) => setPosterUrl(v)}
+                  folder="Banner"
+                  moduleName="Hero Slider"
+                  accept="image/*,image/svg+xml"
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5 leading-relaxed">
+                  Gambar yang tampil seketika saat video sedang buffering atau di perangkat mode hemat daya.
+                </p>
+                {!posterUrl && (
+                  <p className="text-[11px] text-amber-600 mt-1 font-medium">
+                    💡 Disarankan menyertakan Poster Image agar pengunjung tidak melihat jeda buffering video di awal.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Title (Optional) */}
           <div>
             <Input
               label="Judul Slide"
-              placeholder="Baris 1"
+              placeholder="Baris 1 (Opsional)"
               error={errors.title?.message}
               {...register('title')}
             />
           </div>
 
-          {/* Subtitle */}
+          {/* Subtitle (Optional) */}
           <Textarea
             label="Deskripsi / Subtitle"
             rows={3}
-            placeholder="Deskripsi singkat yang muncul di bawah judul"
+            placeholder="Deskripsi singkat yang muncul di bawah judul (Opsional)"
             {...register('subtitle')}
           />
 
-          {/* Badge */}
+          {/* Badge (Optional) */}
           <Input
             label="Teks Badge"
             placeholder="🐝 Wisata Edukasi Kelulut"
@@ -440,15 +577,29 @@ export default function AdminHero() {
         size="xl"
       >
         {previewSlide && (
-          <div className="relative rounded-2xl overflow-hidden aspect-video shadow-2xl">
-            <img
-              src={previewSlide.image_url}
-              alt={previewSlide.title || 'Slide'}
-              className="w-full h-full object-cover filter brightness-[1.14] contrast-[1.05] saturate-[1.12]"
-            />
+          <div className="relative rounded-2xl overflow-hidden aspect-video shadow-2xl bg-black">
+            {previewSlide.media_type === 'video' || previewSlide.video_url ? (
+              <video
+                src={previewSlide.video_url || previewSlide.image_url}
+                poster={previewSlide.poster_url || undefined}
+                controls
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="w-full h-full object-cover filter brightness-[1.14] contrast-[1.05] saturate-[1.12]"
+              />
+            ) : (
+              <img
+                src={previewSlide.image_url}
+                alt={previewSlide.title || 'Slide'}
+                className="w-full h-full object-cover filter brightness-[1.14] contrast-[1.05] saturate-[1.12]"
+              />
+            )}
+
             {/* Directional Soft Green Gradient */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 background:
                   'linear-gradient(90deg, rgba(15, 50, 37, 0.65) 0%, rgba(20, 62, 46, 0.38) 42%, rgba(25, 75, 58, 0.18) 75%, rgba(25, 75, 58, 0.10) 100%)',
@@ -471,7 +622,7 @@ export default function AdminHero() {
               }}
             />
 
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white px-6">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white px-6 pointer-events-none">
               {previewSlide.badge_text && (
                 <span className="inline-block bg-[#F5A623]/25 border border-[#F5A623]/60 text-amber-200 text-xs font-bold px-3 py-1 rounded-full mb-3 backdrop-blur-md shadow-sm">
                   {previewSlide.badge_text}
@@ -536,3 +687,4 @@ export default function AdminHero() {
     </div>
   )
 }
+

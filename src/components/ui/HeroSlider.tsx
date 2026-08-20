@@ -1,11 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, MapPin, ChevronDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin, Play } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import type { HeroSlide } from '../../types/database'
 import { cn } from '../../lib/utils'
 
-const AUTOPLAY_DELAY = 5500 // ms
+const DEFAULT_AUTOPLAY_IMAGE_MS = 6000
+const DEFAULT_AUTOPLAY_VIDEO_MS = 9000
 const CACHE_KEY = 'hero_slides_cache'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours TTL
 
@@ -34,51 +35,6 @@ function getInitialCachedSlides(): { slides: HeroSlide[]; hasValidCache: boolean
   return { slides: [], hasValidCache: false }
 }
 
-const DEFAULT_SLIDES: HeroSlide[] = [
-  {
-    id: 'default-1',
-    title: 'Temukan Keajaiban\nLebah Kelulut',
-    subtitle: 'Nikmati wisata edukasi unik bersama lebah kelulut di Sangatta, Kutai Timur. Belajar, panen madu, dan bawa pulang kenangan tak terlupakan.',
-    image_url: 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1600&q=80',
-    badge_text: '🎓 Wisata Edukasi Kelulut',
-    cta_primary_label: 'Reservasi Sekarang',
-    cta_primary_url: '/reservasi',
-    cta_secondary_label: 'Lihat Program',
-    cta_secondary_url: '/program',
-    is_active: true,
-    sort_order: 1,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'default-2',
-    title: 'Panen Madu Kelulut\nLangsung dari Kebun',
-    subtitle: 'Saksikan proses panen madu kelulut secara langsung bersama pemandu berpengalaman kami di Sangatta, Kalimantan Timur.',
-    image_url: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?w=1600&q=80',
-    badge_text: '🍯 Demo Panen Madu',
-    cta_primary_label: 'Reservasi Sekarang',
-    cta_primary_url: '/reservasi',
-    cta_secondary_label: 'Lihat Produk',
-    cta_secondary_url: '/produk',
-    is_active: true,
-    sort_order: 2,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'default-3',
-    title: 'Edukasi Alam Asri\nuntuk Semua Usia',
-    subtitle: 'Program wisata edukasi yang dirancang untuk keluarga, pelajar, dan rombongan. Ramah anak dan penuh wawasan.',
-    image_url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1600&q=80',
-    badge_text: '🐝 Edukasi Ramah Keluarga',
-    cta_primary_label: 'Reservasi Sekarang',
-    cta_primary_url: '/reservasi',
-    cta_secondary_label: 'Lihat Program',
-    cta_secondary_url: '/program',
-    is_active: true,
-    sort_order: 3,
-    created_at: new Date().toISOString(),
-  },
-]
-
 export default function HeroSlider() {
   const cached = useRef(getInitialCachedSlides())
   const [slides, setSlides] = useState<HeroSlide[]>(() => cached.current.slides)
@@ -86,8 +42,13 @@ export default function HeroSlider() {
   const [current, setCurrent] = useState(0)
   const [animating, setAnimating] = useState(false)
   const [loaded, setLoaded] = useState<Record<number, boolean>>({})
+  const [videoReady, setVideoReady] = useState<Record<number, boolean>>({})
+  const [videoError, setVideoError] = useState<Record<number, boolean>>({})
   const [renderedSlides, setRenderedSlides] = useState<Set<number>>(() => new Set([0]))
+  const [autoplayDuration, setAutoplayDuration] = useState<number>(DEFAULT_AUTOPLAY_IMAGE_MS)
+  const [isTabVisible, setIsTabVisible] = useState<boolean>(true)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({})
 
   // Fetch slides dari Supabase di background (stale-while-revalidate)
   useEffect(() => {
@@ -113,14 +74,9 @@ export default function HeroSlider() {
           } catch {
             // Ignore localStorage errors
           }
-        } else if (!cached.current.hasValidCache) {
-          setSlides(DEFAULT_SLIDES)
         }
       } catch (err) {
-        if (!isMounted) return
-        if (!cached.current.hasValidCache) {
-          setSlides(DEFAULT_SLIDES)
-        }
+        console.warn('Notice: Background hero slides fetch:', err)
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -131,31 +87,48 @@ export default function HeroSlider() {
     return () => { isMounted = false }
   }, [])
 
-  const rawActiveSlides = slides.filter((s) => s.is_active)
-  const activeSlides = rawActiveSlides.length > 0 ? rawActiveSlides : DEFAULT_SLIDES
-
-  // Pastikan slide aktif dan slide berikutnya selalu siap (dimuat)
+  // Page Visibility API handler
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible'
+      setIsTabVisible(isVisible)
+      if (!isVisible) {
+        // Pause all videos when tab is hidden
+        Object.values(videoRefs.current).forEach((videoEl) => videoEl?.pause())
+        if (timerRef.current) clearTimeout(timerRef.current)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  const activeSlides = useMemo(() => slides.filter((s) => s.is_active), [slides])
+
+  // Pastikan slide aktif dan slide adjacent disiapkan
+  useEffect(() => {
+    if (activeSlides.length === 0) return
     setRenderedSlides((prev) => {
       const nextIdx = (current + 1) % activeSlides.length
       const prevIdx = (current - 1 + activeSlides.length) % activeSlides.length
       if (prev.has(current) && prev.has(nextIdx) && prev.has(prevIdx)) return prev
-      const next = new Set(prev)
-      next.add(current)
-      next.add(nextIdx)
-      next.add(prevIdx)
-      return next
+      const nextSet = new Set(prev)
+      nextSet.add(current)
+      nextSet.add(nextIdx)
+      nextSet.add(prevIdx)
+      return nextSet
     })
   }, [current, activeSlides.length])
 
   // Muat sisa slide lainnya secara bertahap setelah browser idle (2.5 detik)
   useEffect(() => {
+    if (activeSlides.length === 0) return
     const timer = setTimeout(() => {
       setRenderedSlides(new Set(activeSlides.map((_, i) => i)))
     }, 2500)
     return () => clearTimeout(timer)
   }, [activeSlides])
 
+  // Navigasi Slide
   const goTo = useCallback((idx: number) => {
     if (animating || idx === current) return
     setAnimating(true)
@@ -164,19 +137,62 @@ export default function HeroSlider() {
   }, [animating, current])
 
   const next = useCallback(() => {
+    if (activeSlides.length <= 1) return
     goTo((current + 1) % activeSlides.length)
   }, [current, activeSlides.length, goTo])
 
   const prev = useCallback(() => {
+    if (activeSlides.length <= 1) return
     goTo((current - 1 + activeSlides.length) % activeSlides.length)
   }, [current, activeSlides.length, goTo])
 
-  // Autoplay
+  // Kontrol Video Playback & Pause saat pergantian slide
   useEffect(() => {
-    if (activeSlides.length <= 1) return
-    timerRef.current = setTimeout(next, AUTOPLAY_DELAY)
-    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
-  }, [current, activeSlides.length, next])
+    if (!isTabVisible) return
+    const activeSlide = activeSlides[current]
+    if (!activeSlide) return
+
+    const isVideoSlide = (activeSlide.media_type === 'video' || Boolean(activeSlide.video_url)) && Boolean(activeSlide.video_url)
+
+    // Tentukan durasi autoplay yang adaptif
+    if (isVideoSlide) {
+      const videoEl = videoRefs.current[current]
+      if (videoEl && !isNaN(videoEl.duration) && videoEl.duration > 0) {
+        setAutoplayDuration(Math.max(6000, Math.min(videoEl.duration * 1000, 16000)))
+      } else {
+        setAutoplayDuration(DEFAULT_AUTOPLAY_VIDEO_MS)
+      }
+    } else {
+      setAutoplayDuration(DEFAULT_AUTOPLAY_IMAGE_MS)
+    }
+
+    // Play video slide aktif, pause slide lainnya
+    Object.entries(videoRefs.current).forEach(([idxStr, videoEl]) => {
+      const idx = Number(idxStr)
+      if (!videoEl) return
+
+      if (idx === current && !videoError[idx]) {
+        videoEl.currentTime = 0
+        const playPromise = videoEl.play()
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Browser autoplay restrictions handled gracefully; poster fallback remains visible
+          })
+        }
+      } else {
+        videoEl.pause()
+      }
+    })
+  }, [current, activeSlides, isTabVisible, videoError])
+
+  // Autoplay Timer
+  useEffect(() => {
+    if (!isTabVisible || activeSlides.length <= 1) return
+    timerRef.current = setTimeout(next, autoplayDuration)
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [current, activeSlides.length, next, autoplayDuration, isTabVisible])
 
   // Keyboard navigation
   useEffect(() => {
@@ -198,188 +214,183 @@ export default function HeroSlider() {
     if (Math.abs(diff) > 50) diff > 0 ? next() : prev()
   }
 
-  if (loading) {
+  // Jika cold start tanpa cache dan Supabase belum kembali
+  if (loading && activeSlides.length === 0) {
     return (
       <section
-        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#1B4332]"
+        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0e271d]"
         aria-label="Memuat slider hero"
       >
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1B4332]/85 via-[#1B4332]/65 to-[#1B4332]/90" />
-        <div className="relative z-20 text-center px-4 max-w-4xl mx-auto w-full flex flex-col items-center animate-pulse">
-          <div className="h-8 w-52 bg-white/15 rounded-full mb-6" />
-          <div className="h-12 md:h-16 w-3/4 max-w-xl bg-white/15 rounded-2xl mb-3" />
-          <div className="h-12 md:h-16 w-1/2 max-w-md bg-white/15 rounded-2xl mb-6" />
-          <div className="h-4 w-full max-w-lg bg-white/15 rounded mb-2" />
-          <div className="h-4 w-2/3 max-w-md bg-white/15 rounded mb-10" />
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <div className="h-14 w-44 bg-white/15 rounded-2xl" />
-            <div className="h-14 w-40 bg-white/15 rounded-2xl" />
-          </div>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0e271d]/90 via-[#133527]/70 to-[#0e271d]/95" />
       </section>
     )
   }
 
+  if (activeSlides.length === 0) {
+    return null
+  }
+
   const slide = activeSlides[current] ?? activeSlides[0]
-  const hasTitle = Boolean(slide.title && slide.title.trim())
-  const hasSubtitle = Boolean(slide.subtitle && slide.subtitle.trim())
-  const titleParts = hasTitle ? (slide.title ?? '').split('\n') : []
 
   return (
     <section
-      className="relative min-h-screen flex items-center justify-center overflow-hidden"
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0A1F17]"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      aria-label="Hero slider"
+      aria-roledescription="carousel"
+      aria-label="Hero slider cinematic Kebun Kelulut"
     >
-      {/* ── Background images (slide 1 prioritised, others deferred) ── */}
+      {/* Semantic H1 for SEO (visually hidden to maintain approved clean cinematic design) */}
+      <h1 className="sr-only">Wisata Edukasi Lebah Kelulut Sangatta</h1>
+
+      {/* ── Background Media Layers ── */}
       {activeSlides.map((s, i) => {
         const isRendered = renderedSlides.has(i)
+        const isVideo = (s.media_type === 'video' || Boolean(s.video_url)) && Boolean(s.video_url) && !videoError[i]
+        const posterSrc = s.poster_url || s.image_url
+        const isActive = i === current
+
         return (
           <div
             key={s.id}
             className={cn(
-              'absolute inset-0 transition-opacity duration-700 ease-in-out',
-              i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
+              'absolute inset-0 transition-opacity duration-1000 ease-in-out motion-reduce:transition-none',
+              isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
             )}
           >
-            {/* Enhanced photo with lively natural brightness & saturation */}
             {isRendered && (
-              <img
-                src={s.image_url}
-                alt=""
-                aria-hidden="true"
-                loading={i === 0 ? 'eager' : 'lazy'}
-                fetchPriority={i === 0 ? 'high' : 'auto'}
-                onLoad={() => setLoaded((p) => ({ ...p, [i]: true }))}
-                className={cn(
-                  'w-full h-full object-cover transition-transform duration-[8000ms] ease-out filter brightness-[1.14] contrast-[1.05] saturate-[1.12]',
-                  i === current && loaded[i] ? 'scale-110' : 'scale-100'
+              <div className="relative w-full h-full overflow-hidden bg-black">
+                {isVideo ? (
+                  <>
+                    {/* Poster Image (LCP & Buffering Fallback) */}
+                    <img
+                      src={posterSrc}
+                      alt=""
+                      aria-hidden="true"
+                      loading={i === 0 ? 'eager' : 'lazy'}
+                      fetchPriority={i === 0 ? 'high' : 'auto'}
+                      className="absolute inset-0 w-full h-full object-cover filter brightness-[1.08] contrast-[1.04] saturate-[1.08]"
+                    />
+
+                    {/* HTML5 Native Video */}
+                    <video
+                      ref={(el) => { videoRefs.current[i] = el }}
+                      src={s.video_url!}
+                      poster={posterSrc}
+                      autoPlay={isActive}
+                      muted
+                      loop
+                      playsInline
+                      preload={isActive ? 'auto' : (i === (current + 1) % activeSlides.length ? 'metadata' : 'none')}
+                      onLoadedMetadata={(e) => {
+                        const dur = e.currentTarget.duration
+                        if (!isNaN(dur) && dur > 0 && isActive) {
+                          setAutoplayDuration(Math.max(6000, Math.min(dur * 1000, 16000)))
+                        }
+                      }}
+                      onLoadedData={() => setVideoReady((p) => ({ ...p, [i]: true }))}
+                      onError={() => setVideoError((p) => ({ ...p, [i]: true }))}
+                      onEnded={next}
+                      className={cn(
+                        'absolute inset-0 w-full h-full object-cover filter brightness-[1.08] contrast-[1.04] saturate-[1.08] transition-opacity duration-700 motion-reduce:transition-none',
+                        videoReady[i] ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                  </>
+                ) : (
+                  /* Image Media */
+                  <img
+                    src={s.image_url}
+                    alt=""
+                    aria-hidden="true"
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    fetchPriority={i === 0 ? 'high' : 'auto'}
+                    onLoad={() => setLoaded((p) => ({ ...p, [i]: true }))}
+                    className={cn(
+                      'w-full h-full object-cover transition-transform duration-[9000ms] ease-out filter brightness-[1.12] contrast-[1.05] saturate-[1.10] motion-reduce:transform-none',
+                      isActive && loaded[i] ? 'scale-105' : 'scale-100'
+                    )}
+                  />
                 )}
-              />
+              </div>
             )}
 
-          {/* ── Layer 1: Desktop Soft Directional Gradient (Dark green left -> Transparent center -> Soft green right) ── */}
-          <div
-            className="absolute inset-0 hidden md:block"
-            style={{
-              background:
-                'linear-gradient(90deg, rgba(15, 50, 37, 0.65) 0%, rgba(20, 62, 46, 0.38) 42%, rgba(25, 75, 58, 0.18) 75%, rgba(25, 75, 58, 0.10) 100%)',
-            }}
-          />
+            {/* ── Layer 1: Directional Soft Vignette Gradient ── */}
+            <div
+              className="absolute inset-0 hidden md:block pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(90deg, rgba(10, 31, 23, 0.68) 0%, rgba(15, 45, 33, 0.38) 45%, rgba(18, 55, 40, 0.18) 75%, rgba(10, 31, 23, 0.30) 100%)',
+              }}
+            />
 
-          {/* ── Layer 1 (Mobile): Soft Centered Gradient with high transparency ── */}
-          <div
-            className="absolute inset-0 md:hidden"
-            style={{
-              background:
-                'linear-gradient(180deg, rgba(15, 48, 36, 0.58) 0%, rgba(18, 55, 41, 0.36) 45%, rgba(15, 48, 36, 0.62) 100%)',
-            }}
-          />
+            {/* ── Layer 1 Mobile: Soft Vertical Gradient ── */}
+            <div
+              className="absolute inset-0 md:hidden pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(180deg, rgba(10, 31, 23, 0.62) 0%, rgba(15, 45, 33, 0.40) 45%, rgba(10, 31, 23, 0.70) 100%)',
+              }}
+            />
 
-          {/* ── Layer 2: Top & Bottom Soft Vignette for navbar clarity & clean edge ── */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background:
-                'linear-gradient(180deg, rgba(10, 32, 24, 0.40) 0%, transparent 22%, transparent 75%, rgba(10, 32, 24, 0.50) 100%)',
-            }}
-          />
+            {/* ── Layer 2: Top (Navbar) & Bottom Edge Vignette ── */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(180deg, rgba(7, 22, 16, 0.50) 0%, transparent 20%, transparent 72%, rgba(7, 22, 16, 0.65) 100%)',
+              }}
+            />
 
-          {/* ── Layer 3: Warm Golden Sunlight Accent for energetic & fresh tourism feel ── */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen"
-            style={{
-              background:
-                'radial-gradient(ellipse at 80% 15%, rgba(245, 166, 35, 0.35) 0%, transparent 60%)',
-            }}
-          />
-        </div>
+            {/* ── Layer 3: Warm Sunbeam Accent ── */}
+            <div
+              className="absolute inset-0 pointer-events-none opacity-30 mix-blend-screen"
+              style={{
+                background:
+                  'radial-gradient(ellipse at 85% 15%, rgba(245, 166, 35, 0.40) 0%, transparent 60%)',
+              }}
+            />
+          </div>
         )
       })}
 
-      {/* ── Content ── */}
-      <div className="relative z-20 text-center text-white px-4 max-w-4xl mx-auto w-full pt-16 md:pt-0">
+      {/* ── Hero Center Content (Clean Cinematic Look) ── */}
+      <div className="relative z-20 text-center text-white px-4 max-w-4xl mx-auto w-full pt-20 pb-28 md:pt-6 md:pb-24">
 
         {/* Badge */}
         {slide.badge_text && (
           <div
             key={`badge-${current}`}
-            className={cn(
-              "inline-flex items-center gap-2 bg-[#F5A623]/25 hover:bg-[#F5A623]/35 border border-[#F5A623]/60 text-amber-200 text-sm font-semibold px-4 py-1.5 rounded-full backdrop-blur-md shadow-md shadow-amber-950/20 animate-fade-in-up transition-all duration-300",
-              hasTitle || hasSubtitle ? "mb-6" : "mb-10"
-            )}
+            className="inline-flex items-center gap-2 bg-[#F5A623]/25 hover:bg-[#F5A623]/35 border border-[#F5A623]/60 text-amber-200 text-xs md:text-sm font-semibold px-4 py-1.5 rounded-full backdrop-blur-md shadow-md shadow-amber-950/20 animate-fade-in-up transition-all duration-300 mb-8"
           >
-            {slide.badge_text}
+            <span>{slide.badge_text}</span>
           </div>
-        )}
-
-        {/* Title */}
-        {hasTitle && (
-          <h1
-            key={`title-${current}`}
-            className={cn(
-              "text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold leading-tight animate-fade-in-up tracking-tight",
-              hasSubtitle ? "mb-6" : "mb-10"
-            )}
-            style={{
-              animationDelay: '80ms',
-              textShadow: '0 3px 12px rgba(0, 0, 0, 0.5), 0 8px 30px rgba(0, 0, 0, 0.25)',
-            }}
-          >
-            {titleParts.map((part, i) => (
-              <span key={i}>
-                {i === 1 ? (
-                  <span className="text-[#FBBF24] drop-shadow-[0_2px_10px_rgba(245,166,35,0.4)]">
-                    {part}
-                  </span>
-                ) : (
-                  part
-                )}
-                {i < titleParts.length - 1 && <br />}
-              </span>
-            ))}
-          </h1>
-        )}
-
-        {/* Subtitle */}
-        {hasSubtitle && (
-          <p
-            key={`sub-${current}`}
-            className="text-lg md:text-xl text-white/95 mb-10 max-w-2xl mx-auto leading-relaxed animate-fade-in-up font-normal"
-            style={{
-              animationDelay: '160ms',
-              textShadow: '0 2px 8px rgba(0, 0, 0, 0.45)',
-            }}
-          >
-            {slide.subtitle}
-          </p>
         )}
 
         {/* CTA buttons */}
         <div
           key={`cta-${current}`}
-          className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-fade-in-up"
-          style={{ animationDelay: '240ms' }}
+          className="flex flex-col sm:flex-row gap-3.5 justify-center items-center animate-fade-in-up"
+          style={{ animationDelay: '150ms' }}
         >
           {slide.cta_primary_label && slide.cta_primary_url && (
             <Link
               to={slide.cta_primary_url}
               className="group inline-flex items-center justify-center gap-2 bg-[#F5A623] hover:bg-[#e09520]
-                text-white font-bold text-base px-8 py-4 rounded-2xl transition-all duration-300
-                active:scale-95 shadow-xl shadow-amber-950/30 hover:shadow-amber-500/25 hover:-translate-y-0.5"
+                text-white font-bold text-sm md:text-base px-7 py-3.5 rounded-2xl transition-all duration-300
+                active:scale-95 shadow-xl shadow-amber-950/40 hover:shadow-amber-500/30 hover:-translate-y-0.5"
             >
               <span>{slide.cta_primary_label}</span>
-              <ChevronRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+              <ChevronRight size={17} className="transition-transform duration-300 group-hover:translate-x-1" />
             </Link>
           )}
           {slide.cta_secondary_label && slide.cta_secondary_url && (
             <Link
               to={slide.cta_secondary_url}
               className="inline-flex items-center justify-center gap-2 border-2 border-white/80
-                hover:border-white text-white font-bold text-base px-8 py-4 rounded-2xl
+                hover:border-white text-white font-bold text-sm md:text-base px-7 py-3.5 rounded-2xl
                 transition-all duration-300 active:scale-95 bg-white/10 hover:bg-white/20
-                backdrop-blur-md shadow-lg shadow-black/15 hover:-translate-y-0.5"
+                backdrop-blur-md shadow-lg shadow-black/20 hover:-translate-y-0.5"
             >
               {slide.cta_secondary_label}
             </Link>
@@ -388,36 +399,33 @@ export default function HeroSlider() {
 
         {/* Location badge */}
         <div
-          className="inline-flex items-center justify-center gap-2 mt-10 text-white/90 text-sm font-medium animate-fade-in-up bg-black/20 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/10"
-          style={{
-            animationDelay: '320ms',
-            textShadow: '0 1px 4px rgba(0, 0, 0, 0.4)',
-          }}
+          className="inline-flex items-center justify-center gap-2 mt-8 text-white/85 text-xs md:text-sm font-medium animate-fade-in-up bg-black/30 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/15 shadow-sm"
+          style={{ animationDelay: '220ms' }}
         >
-          <MapPin size={15} className="text-[#FBBF24]" />
+          <MapPin size={14} className="text-[#FBBF24]" />
           <span>Sangatta Utara, Kutai Timur, Kalimantan Timur</span>
         </div>
       </div>
 
-      {/* ── Prev / Next arrows ── */}
+      {/* ── Prev / Next floating arrows ── */}
       {activeSlides.length > 1 && (
         <>
           <button
             onClick={prev}
-            className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-30
-              w-12 h-12 rounded-full bg-black/25 hover:bg-black/45 backdrop-blur-md
-              flex items-center justify-center text-white transition-all duration-300 border border-white/30 hover:border-white/60
-              hover:scale-110 active:scale-95 shadow-lg shadow-black/25"
+            className="hidden md:flex absolute left-4 lg:left-8 top-1/2 -translate-y-1/2 z-30
+              w-12 h-12 rounded-full bg-black/30 hover:bg-black/55 backdrop-blur-md
+              items-center justify-center text-white transition-all duration-300 border border-white/25 hover:border-white/60
+              hover:scale-110 active:scale-95 shadow-xl shadow-black/30"
             aria-label="Slide sebelumnya"
           >
             <ChevronLeft size={24} />
           </button>
           <button
             onClick={next}
-            className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-30
-              w-12 h-12 rounded-full bg-black/25 hover:bg-black/45 backdrop-blur-md
-              flex items-center justify-center text-white transition-all duration-300 border border-white/30 hover:border-white/60
-              hover:scale-110 active:scale-95 shadow-lg shadow-black/25"
+            className="hidden md:flex absolute right-4 lg:right-8 top-1/2 -translate-y-1/2 z-30
+              w-12 h-12 rounded-full bg-black/30 hover:bg-black/55 backdrop-blur-md
+              items-center justify-center text-white transition-all duration-300 border border-white/25 hover:border-white/60
+              hover:scale-110 active:scale-95 shadow-xl shadow-black/30"
             aria-label="Slide berikutnya"
           >
             <ChevronRight size={24} />
@@ -425,50 +433,69 @@ export default function HeroSlider() {
         </>
       )}
 
-      {/* ── Dot indicators ── */}
+      {/* ── Modern Tourism Horizontal Bottom Navigation Bar ── */}
       {activeSlides.length > 1 && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 bg-black/20 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15">
-          {activeSlides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goTo(i)}
-              className={cn(
-                'rounded-full transition-all duration-300',
-                i === current
-                  ? 'w-7 h-2.5 bg-[#F5A623] shadow-sm shadow-amber-500/50'
-                  : 'w-2.5 h-2.5 bg-white/50 hover:bg-white/80'
-              )}
-              aria-label={`Slide ${i + 1}`}
-            />
-          ))}
-        </div>
-      )}
+        <div className="absolute bottom-4 sm:bottom-6 left-0 right-0 z-30 flex justify-center px-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 bg-black/40 backdrop-blur-lg px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border border-white/15 max-w-full overflow-x-auto shadow-2xl no-scrollbar">
+            {activeSlides.map((s, i) => {
+              const isActive = i === current
+              const isVideo = (s.media_type === 'video' || Boolean(s.video_url)) && Boolean(s.video_url)
+              const cleanTitle = s.title ? s.title.replace('\n', ' ') : `Slide ${i + 1}`
 
-      {/* ── Progress bar ── */}
-      {activeSlides.length > 1 && (
-        <div className="absolute bottom-0 left-0 right-0 z-30 h-1 bg-white/15 backdrop-blur-xs">
-          <div
-            key={current}
-            className="h-full bg-[#F5A623] shadow-[0_0_10px_rgba(245,166,35,0.8)]"
-            style={{
-              animation: `progress-bar ${AUTOPLAY_DELAY}ms linear`,
-            }}
-          />
-        </div>
-      )}
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => goTo(i)}
+                  className={cn(
+                    'group relative text-left py-1.5 px-2.5 sm:px-3.5 rounded-xl transition-all duration-300 shrink-0 flex flex-col justify-between',
+                    isActive
+                      ? 'bg-white/15 text-white'
+                      : 'text-white/60 hover:text-white/90 hover:bg-white/5'
+                  )}
+                  aria-label={`Pindah ke slide ${i + 1}: ${cleanTitle}`}
+                >
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className={cn(
+                      'text-[10px] sm:text-xs font-mono font-bold transition-colors',
+                      isActive ? 'text-[#FBBF24]' : 'text-white/50 group-hover:text-white/80'
+                    )}>
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    {isVideo && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/80 text-white font-bold flex items-center gap-0.5">
+                        <Play size={8} className="fill-white" /> Video
+                      </span>
+                    )}
+                    <span className={cn(
+                      'hidden md:inline-block text-xs font-semibold max-w-[130px] lg:max-w-[180px] truncate',
+                      isActive ? 'text-white' : 'text-white/70'
+                    )}>
+                      {cleanTitle}
+                    </span>
+                  </div>
 
-      {/* ── Scroll indicator ── */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 text-white/70 animate-bounce drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]">
-        <ChevronDown size={28} />
-      </div>
-
-      {/* ── Slide counter ── */}
-      {activeSlides.length > 1 && (
-        <div className="absolute top-24 right-6 z-30 text-white/80 text-xs font-mono bg-black/30 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15 shadow-sm">
-          {String(current + 1).padStart(2, '0')} / {String(activeSlides.length).padStart(2, '0')}
+                  {/* Dynamic Progress Timer Line on Active Item */}
+                  <div className="w-full h-0.5 bg-white/15 rounded-full overflow-hidden mt-1.5">
+                    {isActive ? (
+                      <div
+                        key={`prog-${current}-${autoplayDuration}`}
+                        className="h-full bg-[#F5A623] shadow-[0_0_8px_rgba(245,166,35,0.9)] motion-reduce:animate-none"
+                        style={{
+                          animation: `progress-bar ${autoplayDuration}ms linear`,
+                        }}
+                      />
+                    ) : (
+                      <div className="h-full w-0" />
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
     </section>
   )
 }
+
 

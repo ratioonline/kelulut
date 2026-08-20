@@ -242,6 +242,9 @@ export interface Database {
           title: string | null
           subtitle: string | null
           image_url: string
+          video_url: string | null
+          poster_url: string | null
+          media_type: 'image' | 'video'
           badge_text: string | null
           cta_primary_label: string | null
           cta_primary_url: string | null
@@ -256,6 +259,9 @@ export interface Database {
           title?: string | null
           subtitle?: string | null
           image_url: string
+          video_url?: string | null
+          poster_url?: string | null
+          media_type?: 'image' | 'video'
           badge_text?: string | null
           cta_primary_label?: string | null
           cta_primary_url?: string | null
@@ -270,6 +276,9 @@ export interface Database {
           title?: string | null
           subtitle?: string | null
           image_url?: string
+          video_url?: string | null
+          poster_url?: string | null
+          media_type?: 'image' | 'video'
           badge_text?: string | null
           cta_primary_label?: string | null
           cta_primary_url?: string | null

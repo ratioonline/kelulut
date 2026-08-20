@@ -12,6 +12,7 @@ interface MediaPickerButtonProps {
   folder?: string
   moduleName?: string
   className?: string
+  accept?: string
 }
 
 // ── Convert File/Blob to base64 data URL ──
@@ -57,6 +58,7 @@ export default function MediaPickerButton({
   folder = 'Lainnya',
   moduleName = 'Lainnya',
   className,
+  accept,
 }: MediaPickerButtonProps) {
   const [managerOpen, setManagerOpen] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -273,7 +275,7 @@ export default function MediaPickerButton({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,video/*,image/svg+xml"
+        accept={accept || "image/*,video/*,image/svg+xml"}
         className="hidden"
         onChange={handleFileChange}
       />
