@@ -1,46 +1,48 @@
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { HelmetProvider, Helmet } from 'react-helmet-async'
 import { Toaster } from 'react-hot-toast'
+import LoadingSpinner from './components/ui/LoadingSpinner'
 
 // Layout
 import Layout from './components/layout/Layout'
-import AdminLayout from './components/admin/AdminLayout'
-import ProtectedRoute from './components/admin/ProtectedRoute'
 
-// Public pages
+// Critical Public entry (Home is rendered on homepage)
 import Home from './pages/client/Home'
-import ProgramPage from './pages/client/Program'
-import ProdukPage from './pages/client/Produk'
-import ProdukDetail from './pages/client/ProdukDetail'
-import ArtikelPage from './pages/client/Artikel'
-import ArtikelDetail from './pages/client/ArtikelDetail'
-import GaleriPage from './pages/client/Galeri'
-import KontakPage from './pages/client/Kontak'
-import ReservasiPage from './pages/client/Reservasi'
 
-// Admin pages
-import AdminLogin from './pages/admin/Login'
-import Dashboard from './pages/admin/Dashboard'
-import AdminReservasi from './pages/admin/AdminReservasi'
-import AdminProduk from './pages/admin/AdminProduk'
-import AdminArtikel from './pages/admin/AdminArtikel'
-import AdminGaleri from './pages/admin/AdminGaleri'
-import AdminProgram from './pages/admin/AdminProgram'
-import AdminHero from './pages/admin/AdminHero'
-import AdminMedia from './pages/admin/AdminMedia'
-import AdminUmkmManagement from './pages/admin/AdminUmkmManagement'
-import AdminUmkmDetail from './pages/admin/AdminUmkmDetail'
-import AdminProfile from './pages/admin/AdminProfile'
-import AdminTransaksi from './pages/admin/AdminTransaksi'
-import AdminPengguna from './pages/admin/AdminPengguna'
-import AdminProfilWebsite from './pages/admin/AdminProfilWebsite'
-import AdminUmkmGaleri from './pages/admin/AdminUmkmGaleri'
+// Secondary Public pages (Lazy loaded)
+const ProgramPage = lazy(() => import('./pages/client/Program'))
+const ProdukPage = lazy(() => import('./pages/client/Produk'))
+const ProdukDetail = lazy(() => import('./pages/client/ProdukDetail'))
+const ArtikelPage = lazy(() => import('./pages/client/Artikel'))
+const ArtikelDetail = lazy(() => import('./pages/client/ArtikelDetail'))
+const GaleriPage = lazy(() => import('./pages/client/Galeri'))
+const KontakPage = lazy(() => import('./pages/client/Kontak'))
+const ReservasiPage = lazy(() => import('./pages/client/Reservasi'))
+const UmkmDirectory = lazy(() => import('./pages/client/UmkmDirectory'))
+const UmkmPublicProfile = lazy(() => import('./pages/client/UmkmPublicProfile'))
 
-// UMKM pages are now handled within the Admin routes
+// Admin Layout & Protected Route (Lazy loaded)
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout'))
+const ProtectedRoute = lazy(() => import('./components/admin/ProtectedRoute'))
 
-import UmkmDirectory from './pages/client/UmkmDirectory'
-import UmkmPublicProfile from './pages/client/UmkmPublicProfile'
+// Admin pages (Lazy loaded)
+const AdminLogin = lazy(() => import('./pages/admin/Login'))
+const Dashboard = lazy(() => import('./pages/admin/Dashboard'))
+const AdminReservasi = lazy(() => import('./pages/admin/AdminReservasi'))
+const AdminProduk = lazy(() => import('./pages/admin/AdminProduk'))
+const AdminArtikel = lazy(() => import('./pages/admin/AdminArtikel'))
+const AdminGaleri = lazy(() => import('./pages/admin/AdminGaleri'))
+const AdminProgram = lazy(() => import('./pages/admin/AdminProgram'))
+const AdminHero = lazy(() => import('./pages/admin/AdminHero'))
+const AdminMedia = lazy(() => import('./pages/admin/AdminMedia'))
+const AdminUmkmManagement = lazy(() => import('./pages/admin/AdminUmkmManagement'))
+const AdminUmkmDetail = lazy(() => import('./pages/admin/AdminUmkmDetail'))
+const AdminProfile = lazy(() => import('./pages/admin/AdminProfile'))
+const AdminTransaksi = lazy(() => import('./pages/admin/AdminTransaksi'))
+const AdminPengguna = lazy(() => import('./pages/admin/AdminPengguna'))
+const AdminProfilWebsite = lazy(() => import('./pages/admin/AdminProfilWebsite'))
+const AdminUmkmGaleri = lazy(() => import('./pages/admin/AdminUmkmGaleri'))
 
 // Auth store
 import { useAuthStore } from './stores/authStore'
@@ -53,54 +55,56 @@ function AppRoutes() {
   }, [initialize])
 
   return (
-    <Routes>
-      {/* ── Public Routes ── */}
-      <Route element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="program" element={<ProgramPage />} />
-        <Route path="produk" element={<ProdukPage />} />
-        <Route path="produk/:slug" element={<ProdukDetail />} />
-        <Route path="artikel" element={<ArtikelPage />} />
-        <Route path="artikel/:slug" element={<ArtikelDetail />} />
-        <Route path="galeri" element={<GaleriPage />} />
-        <Route path="kontak" element={<KontakPage />} />
-        <Route path="reservasi" element={<ReservasiPage />} />
-        <Route path="umkm-directory" element={<UmkmDirectory />} />
-        <Route path="umkm/:slug" element={<UmkmPublicProfile />} />
-      </Route>
-
-      {/* ── Redirect old UMKM Routes to Admin ── */}
-      <Route path="umkm/login" element={<Navigate to="/admin/login" replace />} />
-      <Route path="umkm/*" element={<Navigate to="/admin/dashboard" replace />} />
-
-      {/* ── Admin Login (no layout) ── */}
-      <Route path="admin/login" element={<AdminLogin />} />
-
-      {/* ── Admin Protected Routes ── */}
-      <Route path="admin" element={<ProtectedRoute />}>
-        <Route element={<AdminLayout />}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="profil"    element={<AdminProfile />} />
-          <Route path="media"     element={<AdminMedia />} />
-          <Route path="hero"      element={<AdminHero />} />
-          <Route path="reservasi" element={<AdminReservasi />} />
-          <Route path="produk"    element={<AdminProduk />} />
-          <Route path="artikel"   element={<AdminArtikel />} />
-          <Route path="galeri"    element={<AdminGaleri />} />
-          <Route path="umkm-galeri" element={<AdminUmkmGaleri />} />
-          <Route path="program"   element={<AdminProgram />} />
-          <Route path="umkm-management" element={<AdminUmkmManagement />} />
-          <Route path="umkm-management/:id" element={<AdminUmkmDetail />} />
-          <Route path="transaksi" element={<AdminTransaksi />} />
-          <Route path="pengguna"  element={<AdminPengguna />} />
-          <Route path="profil-website" element={<AdminProfilWebsite />} />
+    <Suspense fallback={<LoadingSpinner fullPage />}>
+      <Routes>
+        {/* ── Public Routes ── */}
+        <Route element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="program" element={<ProgramPage />} />
+          <Route path="produk" element={<ProdukPage />} />
+          <Route path="produk/:slug" element={<ProdukDetail />} />
+          <Route path="artikel" element={<ArtikelPage />} />
+          <Route path="artikel/:slug" element={<ArtikelDetail />} />
+          <Route path="galeri" element={<GaleriPage />} />
+          <Route path="kontak" element={<KontakPage />} />
+          <Route path="reservasi" element={<ReservasiPage />} />
+          <Route path="umkm-directory" element={<UmkmDirectory />} />
+          <Route path="umkm/:slug" element={<UmkmPublicProfile />} />
         </Route>
-      </Route>
 
-      {/* ── 404 fallback ── */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* ── Redirect old UMKM Routes to Admin ── */}
+        <Route path="umkm/login" element={<Navigate to="/admin/login" replace />} />
+        <Route path="umkm/*" element={<Navigate to="/admin/dashboard" replace />} />
+
+        {/* ── Admin Login (no layout) ── */}
+        <Route path="admin/login" element={<AdminLogin />} />
+
+        {/* ── Admin Protected Routes ── */}
+        <Route path="admin" element={<ProtectedRoute />}>
+          <Route element={<AdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="profil"    element={<AdminProfile />} />
+            <Route path="media"     element={<AdminMedia />} />
+            <Route path="hero"      element={<AdminHero />} />
+            <Route path="reservasi" element={<AdminReservasi />} />
+            <Route path="produk"    element={<AdminProduk />} />
+            <Route path="artikel"   element={<AdminArtikel />} />
+            <Route path="galeri"    element={<AdminGaleri />} />
+            <Route path="umkm-galeri" element={<AdminUmkmGaleri />} />
+            <Route path="program"   element={<AdminProgram />} />
+            <Route path="umkm-management" element={<AdminUmkmManagement />} />
+            <Route path="umkm-management/:id" element={<AdminUmkmDetail />} />
+            <Route path="transaksi" element={<AdminTransaksi />} />
+            <Route path="pengguna"  element={<AdminPengguna />} />
+            <Route path="profil-website" element={<AdminProfilWebsite />} />
+          </Route>
+        </Route>
+
+        {/* ── 404 fallback ── */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   )
 }
 

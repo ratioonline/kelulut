@@ -53,14 +53,14 @@ const DEFAULT_SLIDES: HeroSlide[] = [
 ]
 
 export default function HeroSlider() {
-  const [slides, setSlides] = useState<HeroSlide[]>([])
-  const [loading, setLoading] = useState(true)
+  const [slides, setSlides] = useState<HeroSlide[]>(DEFAULT_SLIDES)
   const [current, setCurrent] = useState(0)
   const [animating, setAnimating] = useState(false)
   const [loaded, setLoaded] = useState<Record<number, boolean>>({})
+  const [renderedSlides, setRenderedSlides] = useState<Set<number>>(() => new Set([0]))
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Fetch slides dari Supabase
+  // Fetch slides dari Supabase di latar belakang (non-blocking)
   useEffect(() => {
     const fetchSlides = async () => {
       try {
@@ -72,13 +72,9 @@ export default function HeroSlider() {
 
         if (!error && data && data.length > 0) {
           setSlides(data as HeroSlide[])
-        } else {
-          setSlides(DEFAULT_SLIDES)
         }
       } catch (err) {
-        setSlides(DEFAULT_SLIDES)
-      } finally {
-        setLoading(false)
+        // Tetap menggunakan DEFAULT_SLIDES jika query gagal / offline
       }
     }
     fetchSlides()
@@ -86,6 +82,28 @@ export default function HeroSlider() {
 
   const rawActiveSlides = slides.filter((s) => s.is_active)
   const activeSlides = rawActiveSlides.length > 0 ? rawActiveSlides : DEFAULT_SLIDES
+
+  // Pastikan slide aktif dan slide berikutnya selalu siap (dimuat)
+  useEffect(() => {
+    setRenderedSlides((prev) => {
+      const nextIdx = (current + 1) % activeSlides.length
+      const prevIdx = (current - 1 + activeSlides.length) % activeSlides.length
+      if (prev.has(current) && prev.has(nextIdx) && prev.has(prevIdx)) return prev
+      const next = new Set(prev)
+      next.add(current)
+      next.add(nextIdx)
+      next.add(prevIdx)
+      return next
+    })
+  }, [current, activeSlides.length])
+
+  // Muat sisa slide lainnya secara bertahap setelah browser idle (2.5 detik)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setRenderedSlides(new Set(activeSlides.map((_, i) => i)))
+    }, 2500)
+    return () => clearTimeout(timer)
+  }, [activeSlides])
 
   const goTo = useCallback((idx: number) => {
     if (animating || idx === current) return
@@ -129,28 +147,6 @@ export default function HeroSlider() {
     if (Math.abs(diff) > 50) diff > 0 ? next() : prev()
   }
 
-  if (loading) {
-    return (
-      <section
-        className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#1B4332]"
-        aria-label="Memuat slider hero"
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-[#1B4332]/85 via-[#1B4332]/65 to-[#1B4332]/90" />
-        <div className="relative z-20 text-center px-4 max-w-4xl mx-auto w-full flex flex-col items-center animate-pulse">
-          <div className="h-8 w-52 bg-white/15 rounded-full mb-6" />
-          <div className="h-12 md:h-16 w-3/4 max-w-xl bg-white/15 rounded-2xl mb-3" />
-          <div className="h-12 md:h-16 w-1/2 max-w-md bg-white/15 rounded-2xl mb-6" />
-          <div className="h-4 w-full max-w-lg bg-white/15 rounded mb-2" />
-          <div className="h-4 w-2/3 max-w-md bg-white/15 rounded mb-10" />
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <div className="h-14 w-44 bg-white/15 rounded-2xl" />
-            <div className="h-14 w-40 bg-white/15 rounded-2xl" />
-          </div>
-        </div>
-      </section>
-    )
-  }
-
   const slide = activeSlides[current] ?? activeSlides[0]
   const hasTitle = Boolean(slide.title && slide.title.trim())
   const hasSubtitle = Boolean(slide.subtitle && slide.subtitle.trim())
@@ -163,26 +159,32 @@ export default function HeroSlider() {
       onTouchEnd={handleTouchEnd}
       aria-label="Hero slider"
     >
-      {/* ── Background images (all preloaded, only active visible) ── */}
-      {activeSlides.map((s, i) => (
-        <div
-          key={s.id}
-          className={cn(
-            'absolute inset-0 transition-opacity duration-700 ease-in-out',
-            i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
-          )}
-        >
-          {/* Enhanced photo with lively natural brightness & saturation */}
-          <img
-            src={s.image_url}
-            alt=""
-            aria-hidden="true"
-            onLoad={() => setLoaded((p) => ({ ...p, [i]: true }))}
+      {/* ── Background images (slide 1 prioritised, others deferred) ── */}
+      {activeSlides.map((s, i) => {
+        const isRendered = renderedSlides.has(i)
+        return (
+          <div
+            key={s.id}
             className={cn(
-              'w-full h-full object-cover transition-transform duration-[8000ms] ease-out filter brightness-[1.14] contrast-[1.05] saturate-[1.12]',
-              i === current && loaded[i] ? 'scale-110' : 'scale-100'
+              'absolute inset-0 transition-opacity duration-700 ease-in-out',
+              i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'
             )}
-          />
+          >
+            {/* Enhanced photo with lively natural brightness & saturation */}
+            {isRendered && (
+              <img
+                src={s.image_url}
+                alt=""
+                aria-hidden="true"
+                loading={i === 0 ? 'eager' : 'lazy'}
+                fetchPriority={i === 0 ? 'high' : 'auto'}
+                onLoad={() => setLoaded((p) => ({ ...p, [i]: true }))}
+                className={cn(
+                  'w-full h-full object-cover transition-transform duration-[8000ms] ease-out filter brightness-[1.14] contrast-[1.05] saturate-[1.12]',
+                  i === current && loaded[i] ? 'scale-110' : 'scale-100'
+                )}
+              />
+            )}
 
           {/* ── Layer 1: Desktop Soft Directional Gradient (Dark green left -> Transparent center -> Soft green right) ── */}
           <div
@@ -220,7 +222,8 @@ export default function HeroSlider() {
             }}
           />
         </div>
-      ))}
+        )
+      })}
 
       {/* ── Content ── */}
       <div className="relative z-20 text-center text-white px-4 max-w-4xl mx-auto w-full pt-16 md:pt-0">
