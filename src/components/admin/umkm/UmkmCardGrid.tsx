@@ -95,9 +95,9 @@ export default function UmkmCardGrid({
             <div>
               {/* Header Cover Banner (if any) or Subtle Top Strip */}
               <div className="h-16 w-full bg-linear-to-r from-[#2D6A4F]/15 via-emerald-600/10 to-teal-600/20 relative overflow-hidden">
-                {u.cover_image && (
+                {(u.cover_image || (u as any).cover_image_url) && (
                   <img
-                    src={u.cover_image}
+                    src={u.cover_image || (u as any).cover_image_url}
                     alt=""
                     className="w-full h-full object-cover"
                     loading="lazy"
@@ -123,12 +123,21 @@ export default function UmkmCardGrid({
                 <div className="flex items-end justify-between gap-2">
                   {/* Logo Avatar */}
                   <div className="w-12 h-12 rounded-2xl bg-white p-0.5 shadow-xs border border-gray-200/70 overflow-hidden shrink-0">
-                    {u.logo ? (
+                    {(u.logo || (u as any).logo_url) ? (
                       <img
-                        src={u.logo}
+                        src={u.logo || (u as any).logo_url}
                         alt={u.name}
                         className="w-full h-full object-cover rounded-[14px]"
                         loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                          if (e.currentTarget.parentElement) {
+                            const fallback = document.createElement('div')
+                            fallback.className = 'w-full h-full bg-[#2D6A4F] rounded-[14px] flex items-center justify-center text-white font-black text-base'
+                            fallback.innerText = u.name ? u.name[0].toUpperCase() : 'U'
+                            e.currentTarget.parentElement.appendChild(fallback)
+                          }
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full bg-[#2D6A4F] rounded-[14px] flex items-center justify-center text-white font-black text-base">

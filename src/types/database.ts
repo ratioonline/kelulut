@@ -239,7 +239,7 @@ export interface Database {
       hero_slides: {
         Row: {
           id: string
-          title: string
+          title: string | null
           subtitle: string | null
           image_url: string
           badge_text: string | null
@@ -253,7 +253,7 @@ export interface Database {
         }
         Insert: {
           id?: string
-          title: string
+          title?: string | null
           subtitle?: string | null
           image_url: string
           badge_text?: string | null
@@ -267,7 +267,7 @@ export interface Database {
         }
         Update: {
           id?: string
-          title?: string
+          title?: string | null
           subtitle?: string | null
           image_url?: string
           badge_text?: string | null

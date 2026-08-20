@@ -82,12 +82,12 @@ export const useUmkmStore = create<UmkmState>()((set, get) => ({
 
   updateUmkmProfile: async (id: string, data: Partial<Umkm>) => {
     const payload = { ...data, updated_at: new Date().toISOString() }
+    const client = supabaseAdmin || supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from('umkms').update(payload as any).eq('id', id)
+    const { data: updated, error } = await client.from('umkms').update(payload as any).eq('id', id).select().single()
     if (error) return { error: error.message }
-    // Refresh
-    const { data: updated } = await supabase.from('umkms').select('*').eq('id', id).single()
-    if (updated) set({ umkm: updated as Umkm })
+    if (!updated) return { error: 'Gagal memperbarui profil: periksa izin RLS' }
+    set({ umkm: updated as Umkm })
     return { error: null }
   },
 

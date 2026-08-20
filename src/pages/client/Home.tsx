@@ -466,8 +466,8 @@ export default function Home() {
                   >
                     <div>
                       <div className="w-12 h-12 rounded-xl bg-white border border-gray-200 flex items-center justify-center overflow-hidden mb-3">
-                        {u.logo_url ? (
-                          <img src={u.logo_url} alt={u.name} className="w-full h-full object-cover" loading="lazy" />
+                        {(u.logo || (u as any).logo_url) ? (
+                          <img src={u.logo || (u as any).logo_url} alt={u.name} className="w-full h-full object-cover" loading="lazy" />
                         ) : (
                           <Store size={20} className="text-emerald-700" />
                         )}

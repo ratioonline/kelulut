@@ -17,7 +17,7 @@ AS $$
 DECLARE
   is_admin BOOLEAN;
 BEGIN
-  SELECT (role = 'super_admin') INTO is_admin 
+  SELECT (role IN ('super_admin', 'proktor')) INTO is_admin 
   FROM public.user_profiles 
   WHERE id = auth.uid();
   

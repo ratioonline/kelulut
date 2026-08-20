@@ -241,8 +241,8 @@ export default function UmkmDetailModal({
         {/* Header Identity Card */}
         <div className="rounded-2xl border border-gray-200/80 overflow-hidden bg-white">
           <div className="h-20 w-full bg-linear-to-r from-[#2D6A4F]/20 via-emerald-600/15 to-teal-600/20 relative">
-            {umkm.cover_image && (
-              <img src={umkm.cover_image} alt="" className="w-full h-full object-cover" />
+            {(umkm.cover_image || (umkm as any).cover_image_url) && (
+              <img src={umkm.cover_image || (umkm as any).cover_image_url} alt="" className="w-full h-full object-cover" />
             )}
             <div className="absolute top-2.5 right-2.5">
               <span
@@ -258,11 +258,20 @@ export default function UmkmDetailModal({
           <div className="px-4 pb-3 -mt-8 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
             <div className="flex items-end gap-3">
               <div className="w-16 h-16 rounded-2xl bg-white p-1 shadow-sm border border-gray-200/70 overflow-hidden shrink-0">
-                {umkm.logo ? (
+                {(umkm.logo || (umkm as any).logo_url) ? (
                   <img
-                    src={umkm.logo}
+                    src={umkm.logo || (umkm as any).logo_url}
                     alt={umkm.name}
                     className="w-full h-full object-cover rounded-xl"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      if (e.currentTarget.parentElement) {
+                        const fallback = document.createElement('div')
+                        fallback.className = 'w-full h-full bg-[#2D6A4F] rounded-xl flex items-center justify-center text-white font-black text-xl'
+                        fallback.innerText = umkm.name ? umkm.name[0].toUpperCase() : 'U'
+                        e.currentTarget.parentElement.appendChild(fallback)
+                      }
+                    }}
                   />
                 ) : (
                   <div className="w-full h-full bg-[#2D6A4F] rounded-xl flex items-center justify-center text-white font-black text-xl">

@@ -19,7 +19,7 @@ import { Badge } from '../../components/ui/Badge'
 import toast from 'react-hot-toast'
 
 const schema = z.object({
-  title:                z.string().min(3, 'Judul minimal 3 karakter'),
+  title:                z.string().optional(),
   subtitle:             z.string().optional(),
   badge_text:           z.string().optional(),
   cta_primary_label:    z.string().optional(),
@@ -84,7 +84,7 @@ export default function AdminHero() {
     setImageBase64(slide.image_url)
     setImageError('')
     reset({
-      title:               slide.title,
+      title:               slide.title ?? '',
       subtitle:            slide.subtitle ?? '',
       badge_text:          slide.badge_text ?? '',
       cta_primary_label:   slide.cta_primary_label ?? '',
@@ -105,14 +105,14 @@ export default function AdminHero() {
     setImageError('')
 
     const payload = {
-      title:               data.title,
-      subtitle:            data.subtitle || null,
+      title:               data.title?.trim() || null,
+      subtitle:            data.subtitle?.trim() || null,
       image_url:           imageBase64,
-      badge_text:          data.badge_text || null,
-      cta_primary_label:   data.cta_primary_label || null,
-      cta_primary_url:     data.cta_primary_url || null,
-      cta_secondary_label: data.cta_secondary_label || null,
-      cta_secondary_url:   data.cta_secondary_url || null,
+      badge_text:          data.badge_text?.trim() || null,
+      cta_primary_label:   data.cta_primary_label?.trim() || null,
+      cta_primary_url:     data.cta_primary_url?.trim() || null,
+      cta_secondary_label: data.cta_secondary_label?.trim() || null,
+      cta_secondary_url:   data.cta_secondary_url?.trim() || null,
       sort_order:          data.sort_order,
       is_active:           data.is_active,
     }
@@ -210,7 +210,7 @@ export default function AdminHero() {
                 <div className="relative sm:w-64 h-40 sm:h-auto shrink-0 overflow-hidden bg-gray-100">
                   <img
                     src={slide.image_url}
-                    alt={slide.title}
+                    alt={slide.title || 'Slide'}
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -227,7 +227,7 @@ export default function AdminHero() {
                   {/* Title overlay */}
                   <div className="absolute bottom-2 left-2 right-2">
                     <p className="text-white text-xs font-bold line-clamp-2 leading-tight">
-                      {slide.title.replace('\n', ' ')}
+                      {slide.title ? slide.title.replace('\n', ' ') : <span className="opacity-75 italic">(Tanpa Judul)</span>}
                     </p>
                   </div>
                 </div>
@@ -239,7 +239,7 @@ export default function AdminHero() {
                       <span className="text-xs text-[#F5A623] font-semibold">{slide.badge_text}</span>
                     )}
                     <h3 className="font-bold text-gray-900 leading-snug">
-                      {slide.title.replace('\n', ' · ')}
+                      {slide.title ? slide.title.replace('\n', ' · ') : <span className="text-gray-400 font-normal italic">(Tanpa Judul)</span>}
                     </h3>
                     {slide.subtitle && (
                       <p className="text-sm text-gray-500 line-clamp-2">{slide.subtitle}</p>
@@ -362,13 +362,12 @@ export default function AdminHero() {
           <div>
             <Input
               label="Judul Slide"
-              required
               placeholder="Baris 1"
               error={errors.title?.message}
               {...register('title')}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Gunakan <code className="bg-gray-100 px-1 rounded">\n</code> di tengah judul untuk membuat baris kedua berwarna emas.
+              Opsional. Gunakan <code className="bg-gray-100 px-1 rounded">\n</code> di tengah judul untuk membuat baris kedua berwarna emas.
               Contoh: <code className="bg-gray-100 px-1 rounded">Temukan Keajaiban\nLebah Kelulut</code>
             </p>
           </div>
@@ -438,38 +437,82 @@ export default function AdminHero() {
         size="xl"
       >
         {previewSlide && (
-          <div className="relative rounded-xl overflow-hidden aspect-video">
+          <div className="relative rounded-2xl overflow-hidden aspect-video shadow-2xl">
             <img
               src={previewSlide.image_url}
-              alt={previewSlide.title}
-              className="w-full h-full object-cover"
+              alt={previewSlide.title || 'Slide'}
+              className="w-full h-full object-cover filter brightness-[1.14] contrast-[1.05] saturate-[1.12]"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#1B4332]/75 via-[#1B4332]/55 to-[#1B4332]/80" />
+            {/* Directional Soft Green Gradient */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(90deg, rgba(15, 50, 37, 0.65) 0%, rgba(20, 62, 46, 0.38) 42%, rgba(25, 75, 58, 0.18) 75%, rgba(25, 75, 58, 0.10) 100%)',
+              }}
+            />
+            {/* Top & Bottom Vignette */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(180deg, rgba(10, 32, 24, 0.40) 0%, transparent 22%, transparent 75%, rgba(10, 32, 24, 0.50) 100%)',
+              }}
+            />
+            {/* Warm Golden Sunlight Accent */}
+            <div
+              className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen"
+              style={{
+                background:
+                  'radial-gradient(ellipse at 80% 15%, rgba(245, 166, 35, 0.35) 0%, transparent 60%)',
+              }}
+            />
+
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-white px-6">
               {previewSlide.badge_text && (
-                <span className="inline-block bg-[#F5A623]/20 border border-[#F5A623]/40 text-[#F5A623] text-xs font-bold px-3 py-1 rounded-full mb-3">
+                <span className="inline-block bg-[#F5A623]/25 border border-[#F5A623]/60 text-amber-200 text-xs font-bold px-3 py-1 rounded-full mb-3 backdrop-blur-md shadow-sm">
                   {previewSlide.badge_text}
                 </span>
               )}
-              <h2 className="text-2xl md:text-4xl font-bold leading-tight mb-3">
-                {previewSlide.title.split('\n').map((part, i) => (
-                  <span key={i}>
-                    {i === 1 ? <span className="text-[#F5A623]">{part}</span> : part}
-                    {i === 0 && previewSlide.title.includes('\n') && <br />}
-                  </span>
-                ))}
-              </h2>
-              {previewSlide.subtitle && (
-                <p className="text-gray-200 text-sm max-w-lg">{previewSlide.subtitle}</p>
+              {previewSlide.title && previewSlide.title.trim() && (
+                <h2
+                  className="text-2xl md:text-4xl font-extrabold leading-tight mb-3 tracking-tight"
+                  style={{
+                    textShadow: '0 3px 12px rgba(0, 0, 0, 0.5), 0 8px 30px rgba(0, 0, 0, 0.25)',
+                  }}
+                >
+                  {previewSlide.title.split('\n').map((part, i) => (
+                    <span key={i}>
+                      {i === 1 ? (
+                        <span className="text-[#FBBF24] drop-shadow-[0_2px_10px_rgba(245,166,35,0.4)]">
+                          {part}
+                        </span>
+                      ) : (
+                        part
+                      )}
+                      {i === 0 && previewSlide.title!.includes('\n') && <br />}
+                    </span>
+                  ))}
+                </h2>
+              )}
+              {previewSlide.subtitle && previewSlide.subtitle.trim() && (
+                <p
+                  className="text-white/95 text-sm max-w-lg leading-relaxed"
+                  style={{
+                    textShadow: '0 2px 8px rgba(0, 0, 0, 0.45)',
+                  }}
+                >
+                  {previewSlide.subtitle}
+                </p>
               )}
               <div className="flex gap-3 mt-5 flex-wrap justify-center">
                 {previewSlide.cta_primary_label && (
-                  <span className="bg-[#F5A623] text-white text-sm font-bold px-5 py-2 rounded-xl">
+                  <span className="bg-[#F5A623] text-white text-sm font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-amber-950/30">
                     {previewSlide.cta_primary_label}
                   </span>
                 )}
                 {previewSlide.cta_secondary_label && (
-                  <span className="border-2 border-white/70 text-white text-sm font-bold px-5 py-2 rounded-xl">
+                  <span className="border-2 border-white/80 bg-white/10 backdrop-blur-md text-white text-sm font-bold px-6 py-2.5 rounded-xl shadow-md">
                     {previewSlide.cta_secondary_label}
                   </span>
                 )}
@@ -484,7 +527,7 @@ export default function AdminHero() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        message={`Hapus slide "${deleteTarget?.title.replace('\n', ' ')}"? Tindakan ini tidak dapat dibatalkan.`}
+        message={`Hapus slide "${(deleteTarget?.title || 'Slide').replace('\n', ' ')}"? Tindakan ini tidak dapat dibatalkan.`}
         loading={deleting}
       />
     </div>

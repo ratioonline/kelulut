@@ -220,15 +220,29 @@ export default function AdminUmkmManagement() {
         ...(createdUserId ? { user_id: createdUserId } : {}),
       }
 
+      const client = supabaseAdmin || supabase
       if (editingUmkm) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await supabase.from('umkms').update(payload as any).eq('id', editingUmkm.id)
+        const { data: updatedData, error } = await client
+          .from('umkms')
+          .update(payload as any)
+          .eq('id', editingUmkm.id)
+          .select()
         if (error) throw error
+        if (!updatedData || updatedData.length === 0) {
+          throw new Error('Gagal memperbarui database (0 baris terupdate). Pastikan RLS policy Supabase mengizinkan role Anda.')
+        }
         toast.success('Profil UMKM berhasil diperbarui')
       } else {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error } = await supabase.from('umkms').insert(payload as any)
+        const { data: insertedData, error } = await client
+          .from('umkms')
+          .insert(payload as any)
+          .select()
         if (error) throw error
+        if (!insertedData || insertedData.length === 0) {
+          throw new Error('Gagal menambahkan UMKM ke database. Pastikan RLS policy Supabase mengizinkan role Anda.')
+        }
         toast.success('Mitra UMKM baru berhasil ditambahkan')
       }
 
